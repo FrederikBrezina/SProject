@@ -140,8 +140,10 @@ class WeightVarianceTest(Callback):
     def __init__(self, number_of_context_layers=3):
         super(WeightVarianceTest, self).__init__()
         self.list = []
+        self.list_second_derivative = []
 
         self.batch_list = []
+        self.batch_list2 = []
         #measure 3 units per layer
         for i in range(0,15):
             g = []
@@ -158,20 +160,28 @@ class WeightVarianceTest(Callback):
 
     def on_train_end(self, logs=None):
         #Smoothing out data
+        for element in range(0, len(self.list)):
+            self.list[element] = hp.smooth_the_data_moving_average(self.list[element], 240)
         for element in range(0,len(self.list)):
-            self.list[element] = hp.smooth_the_data_moving_average(self.list[element], 70)
+            self.list_second_derivative.append(hp.smooth_the_data_moving_average(hp.second_order_derivate(self.list[element]), 240))
         for batch_num in range(0, len(self.list[0])):
             self.batch_list.append(batch_num)
+        for batch_num in range(0, len(self.list_second_derivative[0])):
+            self.batch_list2.append(batch_num)
 
         plt.figure(1)
         plt.subplot(211)
-        plt.plot(self.batch_list[0:-2], hp.second_order_derivate(self.list[1]), 'r-', self.batch_list[0:-2], hp.second_order_derivate(self.list[4]), 'b-', self.batch_list[0:-2], hp.second_order_derivate(self.list[7]), 'y-', self.batch_list[0:-2], hp.second_order_derivate(self.list[10]), 'g-', self.batch_list[0:-2], hp.second_order_derivate(self.list[13]), 'k-')
+        plt.plot(self.batch_list2, self.list_second_derivative[1], 'r-',
+                 self.batch_list2, self.list_second_derivative[4], 'b-',
+                 self.batch_list2, self.list_second_derivative[7], 'y-',
+                 self.batch_list2, self.list_second_derivative[10], 'g-',
+                 self.batch_list2, self.list_second_derivative[13], 'k-')
         plt.subplot(212)
-        plt.plot(self.batch_list, self.list[1], 'r-', self.batch_list,
-                 self.list[4], 'b-', self.batch_list, self.list[7],
-                 'y-', self.batch_list, self.list[10], 'g-', self.batch_list,
-                 self.list[13], 'k-')
-
+        plt.plot(self.batch_list, self.list[1], 'r-',
+                 self.batch_list, self.list[4], 'b-',
+                 self.batch_list, self.list[7], 'y-',
+                 self.batch_list, self.list[10], 'g-',
+                 self.batch_list, self.list[13], 'k-')
         plt.show()
 
 

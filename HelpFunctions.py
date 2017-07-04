@@ -199,7 +199,7 @@ def first_order_derivative(list_of_values):
         return_list.append(list_of_values[grad] - list_of_values[grad - 1])
     return return_list
 
-def smooth_the_data_moving_average(list_of_values, range_of_average):
+def smooth_the_data_moving_average(list_of_values, range_of_average = 70):
     smoothed_data = []
     half_range_of_average=int(np.rint(range_of_average/2))
     num_of_points_in_average = 2 * half_range_of_average + 1

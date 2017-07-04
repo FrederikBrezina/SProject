@@ -140,7 +140,7 @@ class WeightVarianceTest(Callback):
     def __init__(self, number_of_context_layers=3):
         super(WeightVarianceTest, self).__init__()
         self.list = []
-        self.batch_num = 0
+
         self.batch_list = []
         #measure 3 units per layer
         for i in range(0,15):
@@ -149,8 +149,7 @@ class WeightVarianceTest(Callback):
 
 
     def on_batch_end(self, batch, logs=None):
-        self.batch_list.append(self.batch_num)
-        self.batch_num += 1
+
 
         for i in range(0,5):
             self.list[(i * 3 + 0)].append(self.model.layers[i+1].get_weights()[0][0][0])
@@ -158,9 +157,21 @@ class WeightVarianceTest(Callback):
             self.list[i * 3 + 2].append(self.model.layers[i+1].get_weights()[0][1][0])
 
     def on_train_end(self, logs=None):
+        #Smoothing out data
+        for element in range(0,len(self.list)):
+            self.list[element] = hp.smooth_the_data_moving_average(self.list[element], 70)
+        for batch_num in range(0, len(self.list[0])):
+            self.batch_list.append(batch_num)
+
         plt.figure(1)
         plt.subplot(211)
         plt.plot(self.batch_list[0:-2], hp.second_order_derivate(self.list[1]), 'r-', self.batch_list[0:-2], hp.second_order_derivate(self.list[4]), 'b-', self.batch_list[0:-2], hp.second_order_derivate(self.list[7]), 'y-', self.batch_list[0:-2], hp.second_order_derivate(self.list[10]), 'g-', self.batch_list[0:-2], hp.second_order_derivate(self.list[13]), 'k-')
+        plt.subplot(212)
+        plt.plot(self.batch_list, self.list[1], 'r-', self.batch_list,
+                 self.list[4], 'b-', self.batch_list, self.list[7],
+                 'y-', self.batch_list, self.list[10], 'g-', self.batch_list,
+                 self.list[13], 'k-')
+
         plt.show()
 
 

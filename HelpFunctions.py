@@ -201,7 +201,7 @@ def first_order_derivative(list_of_values):
 
 def smooth_the_data_moving_average(list_of_values, range_of_average):
     smoothed_data = []
-    half_range_of_average=np.rint(range_of_average/2)
+    half_range_of_average=int(np.rint(range_of_average/2))
     num_of_points_in_average = 2 * half_range_of_average + 1
     for point in range(half_range_of_average, len(list_of_values) - half_range_of_average - 1):
         sum = 0

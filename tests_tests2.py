@@ -5,6 +5,7 @@ from keras.layers import Input, Dense
 import MyCallbacks
 import HelpFunctions as hp
 import random as rn
+import matplotlib.pyplot as plt
 
 from math import exp
 
@@ -18,14 +19,14 @@ y_test = dataset[-101:-1, 2:5]
 c = ['relu', 'tanh', 'sigmoid']
 num_of_ouputs = 3
 input = Input(shape=(2,))
-layers = Dense(100, activation=c[0])(input)
-layers = Dense(100, activation=c[1])(layers)
-layers = Dense(50, activation=c[2])(layers)
-output = Dense(num_of_ouputs, activation='sigmoid')(layers)
+output = Dense(num_of_ouputs, activation='linear')(input)
 model = Model(inputs=input, outputs=output)
 model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
 
-acc_his = MyCallbacks.WeightVarianceTest
+acc_his = MyCallbacks.AccHistoryEpochTest()
 
-model.fit(X, Y, epochs=150, batch_size=10, validation_data=(x_test, y_test),
-          callbacks=[], shuffle=True)
+model.fit(X, Y, epochs=500, batch_size=10, validation_data=(x_test, y_test),
+          callbacks=[acc_his], shuffle=True)
+print(hp.convergence_of_NN_val_loss(acc_his.losses_val_losses,10))
+plt.plot(acc_his.losses, 'b-', acc_his.losses_val, 'r-')
+plt.show()

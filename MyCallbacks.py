@@ -111,6 +111,17 @@ class LossHistory(Callback):
     def on_batch_end(self, batch, logs={}):
         self.losses.append(logs.get('loss'))
 
+class AccHistoryEpochTest(Callback):
+    def on_train_begin(self, logs=None):
+        self.losses = []
+        self.losses_val = []
+        self.losses_val_losses = []
+
+    def on_epoch_end(self, epoch, logs=None):
+        self.losses.append(logs.get('acc'))
+        self.losses_val.append(logs.get('val_acc'))
+        self.losses_val_losses.append(logs.get('val_loss'))
+
 class ValLossHistory(Callback):
     def on_train_begin(self, logs={}):
         self.losses = []

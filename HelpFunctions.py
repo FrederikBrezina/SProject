@@ -14,13 +14,16 @@ def convergence_of_NN_val_loss(val_loss, convergence_rate):
             x = val_loss[-i]
     diff = x - val_loss[-1]
     #clip the diff in case
-    if diff>0.07:
-        diff = 0.07
+    # if diff>0.07:
+    #     diff = 0.07
     for i in range(0, len(val_loss)):
         if (val_loss[i] - diff) <= val_loss[-1]:
             return (i+1)
 
     return len(val_loss)
+
+def highest_accuracy_of_NN(val_acc):
+    return max(val_acc)
 
 def mean_and_std(values_list):
     length = len(values_list)

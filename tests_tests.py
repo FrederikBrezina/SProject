@@ -30,7 +30,7 @@ model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accur
 
 acc_his = MyCallbacks.AccHistoryEpochTest()
 
-model.fit(X, Y, epochs=500, batch_size=10, validation_data=(x_test, y_test),
+model.fit(X, Y, epochs=100, batch_size=10, validation_data=(x_test, y_test),
           callbacks=[acc_his], shuffle=True)
 print(hp.convergence_of_NN_val_loss(acc_his.losses_val_losses,10))
 plt.plot(acc_his.losses, 'b-', acc_his.losses_val, 'r-')

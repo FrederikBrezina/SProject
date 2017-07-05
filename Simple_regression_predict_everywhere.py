@@ -14,13 +14,7 @@ dataset = np.loadtxt("units_of_first_layer.txt", delimiter=" ")
 
 X = dataset[:, 0:1].tolist()
 Y = dataset[:, 1:2].tolist()
-x_test = []
-y_test = []
-for val in range(0,7):
-    ra = np.random.randint((len(X) - 1))
-    x_test.append(X[ra]), y_test.append(Y[ra])
-    del X[ra]
-    del Y[ra]
+
 
 # Types of layers used
 c = ['relu', 'tanh', 'sigmoid']
@@ -31,5 +25,14 @@ model = Model(inputs=input, outputs=output)
 model.compile(loss='mean_squared_error', optimizer='adam', metrics=['accuracy'])
 
 
-model.fit(X, Y, epochs=500, batch_size=10, validation_data=(x_test,y_test),
+model.fit(X, Y, epochs=500, batch_size=10, validation_data=(),
           callbacks=[], shuffle=True)
+Y_predict = model.predict(X)
+print(Y_predict, Y)
+for point in range(0,len(Y)):
+    Y_predict[point] = np.sqrt((Y_predict[point] - Y[point])**2)
+plt.figure(1)
+plt.plot(Y_predict)
+plt.figure(2)
+plt.plot(Y)
+plt.show()

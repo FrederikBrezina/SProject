@@ -1,5 +1,5 @@
 import numpy as np
-def convergence_of_NN_val_loss(val_loss, convergence_rate):
+def convergence_of_NN_val_loss(val_loss, convergence_rate = 4):
     #Smaller the better
     #Find the best model
     index = val_loss.index(min(val_loss))
@@ -12,7 +12,7 @@ def convergence_of_NN_val_loss(val_loss, convergence_rate):
     for i in range (2, (convergence_rate+2)):
         if val_loss[-i]>val_loss[1-i]:
             x = val_loss[-i]
-    diff = x - val_loss[-1]
+    diff = (x - val_loss[-1])/2
     #clip the diff in case
     # if diff>0.07:
     #     diff = 0.07

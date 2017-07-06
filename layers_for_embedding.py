@@ -16,29 +16,40 @@ y_test = dataset[-101:-1,2:5]
 c = ['relu' , 'tanh' , 'sigmoid' ]
 num_of_ouputs = 3
 
+measurement_array = np.zeros((3,13,10)) #Where last number is number of measurements
+
 #Observe for number of context units
-for context in range (1,8):
-    context_units = 2^(context)
-    for i in range(0,3):
-        layers,input = Input(shape=(2,))
-
-        #Observe layers from 5 to 20 units
-        for units in range(5,20):
-            #choosing number of units in layers
-            rand = rn.random()*4 + 1
-            units = round(exp(rand))
+for i in range(0,3):
+    #Observe layers from 5 to 20 units
+    for units in range(3,16):
+        #Measurement Values
+        convergence_points = []
+        second_order_before_conv = []
+        second_order_after_conv = []
+        act_units = int(1.6**(units))
+        for num_of_try in range(0,5):
             #choosing activation function
-
-            layers = Dense(units, activation=c[i])(layers)
-            layers = Dense(context_units, activation=c[0])(layers)
-            layers = Dense(context_units, activation=c[1])(layers)
-            layers = Dense(context_units, activation=c[2])(layers)
+            layers, input = Input(shape=(2,))
+            layers = Dense(act_units, activation=c[i])(layers)
+            layers = Dense(40, activation=c[0])(layers)
+            layers = Dense(30, activation=c[1])(layers)
+            layers = Dense(20, activation=c[2])(layers)
             output = Dense(num_of_ouputs, activation='sigmoid')(layers)
             model = Model(inputs=input, outputs=output)
             model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
 
+            #Create callback
+            weight_variance_history = MyCallbacks.LayersEmbeddingAllMeasurements()
 
-            weight_variance_history = MyCallbacks.WeightVarianceTest()
-
+            #Fit the model
             model.fit(X, Y, epochs=150, batch_size=10, validation_data=(x_test, y_test),
                       callbacks=[weight_variance_history], shuffle=True)
+            #Append measured values
+            convergence_points.append(weight_variance_history.convergence_time_step)
+            second_order_before_conv.append(weight_variance_history.second_derivative_sum_before_conv)
+            second_order_after_conv.append(weight_variance_history.second_derivative_sum_after_conv)
+
+        #Calculate the standard deviations and put the measurements in the array
+        measurement_array[i][units - 3][0] , measurement_array[i][units - 3][1] = hp.mean_and_std(second_order_before_conv)
+        measurement_array[i][units - 3][2], measurement_array[i][units - 3][3] = hp.mean_and_std(second_order_after_conv)
+        measurement_array[i][units - 3][4], measurement_array[i][units - 3][5] = hp.mean_and_std(convergence_points)

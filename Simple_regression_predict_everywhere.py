@@ -28,11 +28,14 @@ model.compile(loss='mean_squared_error', optimizer='adam', metrics=['accuracy'])
 model.fit(X, Y, epochs=500, batch_size=10, validation_data=(),
           callbacks=[], shuffle=True)
 Y_predict = model.predict(X)
-print(Y_predict, Y)
+Y_diff = []
 for point in range(0,len(Y)):
-    Y_predict[point] = np.sqrt((Y_predict[point] - Y[point])**2)
+    Y_diff.append(np.sqrt((Y_predict[point] - Y[point])**2))
 plt.figure(1)
-plt.plot(Y_predict)
+plt.plot(Y_diff)
 plt.figure(2)
+plt.subplot(2,1,1)
 plt.plot(Y)
+plt.subplot(2,1,2)
+plt.plot(Y_predict)
 plt.show()

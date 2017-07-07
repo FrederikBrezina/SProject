@@ -2,106 +2,7 @@ from keras.callbacks import Callback
 import numpy as np
 import matplotlib.pyplot as plt
 import HelpFunctions as hp
-
-
-class WeightVarianceHistory(Callback):
-    def __init__(self):
-        super(WeightVarianceHistory, self).__init__()
-        #Temporary parameters
-        self.finish_model = []
-        self.start_model = []
-        self.model_change = []
-        self.last_model = []
-        self.all_models = []
-        self.all_models_average = []
-        self.epoch_num = 1
-        self.top10=np.zeros((10,5)) #Where first 3 are indeces where to find the average, 4th
-                                    #is the abs(average) and the 5th is the variance of that weight
-        #Callback parameters
-        self.model_change_average = 0
-        self.weight_var = [0 , 0] #[0] -> sum of averages of top10 largest weights, [1] -> sum of standard deviations of top10 weights
-
-    def on_train_begin(self, logs={}):
-        self.model_change = self.model.get_weights()
-        self.start_model = self.model.get_weights()
-        self.last_model = self.model.get_weights()
-        self.all_models = self.model.get_weights()
-        self.all_models_average = self.model.get_weights()
-
-    def on_epoch_end(self, epoch, logs=None):
-        self.epoch_num += 1
-        # Appending all history of weights nad calculating its variance
-        self.all_models.append(self.model.get_weights)
-        self.finish_model = self.model.get_weights()
-        for i1 in range(0, len(self.finish_model)):
-            for i2 in range(0, self.finish_model[i1].shape[0]):
-                for i3 in range(0, self.finish_model[i1].shape[1]):
-                    self.all_models_average[i1][i2][i3] += self.finish_model[i1][i2][i3]
-
-    def on_batch_end(self, batch, logs={}):
-        #Calculating the total distance traveled by the weight
-        self.finish_model = self.model.get_weights()
-        for i1 in range(0,len(self.finish_model)):
-            for i2 in range(0, self.finish_model[i1].shape[0]):
-                for i3 in range(0, self.finish_model[i1].shape[1]):
-                    self.model_change[i1][i2][i3] += abs(self.finish_model[i1][i2][i3] - self.last_model[i1][i2][i3])
-
-        self.last_model=self.last_model
-
-    def on_train_end(self, logs=None):
-        self.finish_model=self.model.get_weights()
-        unit_count=0
-        for i1 in range(0,len(self.finish_model)):
-            for i2 in range(0, self.finish_model[i1].shape[0]):
-                for i3 in range(0, self.finish_model[i1].shape[1]):
-                    unit_count += 1
-                    self.model_change[i1][i2][i3] -= self.start_model[i1][i2][i3]
-                    self.model_change[i1][i2][i3] /= abs(self.finish_model[i1][i2][i3] - self.start_model[i1][i2][i3])
-                    self.model_change_average += self.model_change[i1][i2][i3]
-                    self.all_models_average[i1][i2][i3] /= self.epoch_num
-
-        #Average distance traveled for one unit
-        self.model_change_average /= unit_count
-
-        #CHoose ten biggest absolute values from matrix and calculate their variance
-        for i1 in range(0,len(self.finish_model)):
-            for i2 in range(0, self.finish_model[i1].shape[0]):
-                for i3 in range(0, self.finish_model[i1].shape[1]):
-                    x = 0  #If x stayes 0 than the number is no bigger than any of the numbers
-                    for i4 in range(0,self.top10.shape[0]):
-                        #starting from the bottom of the array where elements are the lowest
-                        if abs(self.all_models_average)>abs(self.top10[-i4-1,3]):
-                            x = -i4-1
-                    #Move all the subsequent positions by one down
-                    for i4 in range(0,abs(x)):
-                        # Special case if it is last element
-                        if abs(x) == 1:
-                            self.top10[-1][3] = self.all_models_average[i1][i2][i3]
-                            self.top10[-1][0] = i1
-                            self.top10[-1][1] = i2
-                            self.top10[-1][2] = i3
-                        #Standard other cases
-                        if i4 != abs(x)-1:
-                            self.top10[-1-i4][3] = self.top10[-2-i4][3]
-                            self.top10[-1-i4][0] = self.top10[-2-i4][0]
-                            self.top10[-1-i4][1] = self.top10[-2-i4][1]
-                            self.top10[-1-i4][2] = self.top10[-2-i4][2]
-                        #Putting the new value at the right place
-                        if i4 ==abs(x) -1:
-                            self.top10[x][3] = self.all_models_average[i1][i2][i3]
-                            self.top10[x][0] = i1
-                            self.top10[x][1] = i2
-                            self.top10[x][2] = i3
-
-        #Calculate the standard deviation of the largest abs means
-        for x1 in range(0,self.top10.shape[0]):
-            for x2 in range(0, len(self.all_models)):
-                self.top10[x1][4] += (self.top10[x1][3] - self.all_models[x2][self.top10[x1][0]][self.top10[x1][1]][self.top10[x1][2]])**2
-
-            self.top10[x1][4] = self.top10[x1][4]**0.5
-            self.weight_var[0] += abs(self.top10[x1][3])
-            self.weight_var[1] += self.top10[x1][4]
-
+import HelpFunctionsThreading as hpt
 
 
 class LossHistory(Callback):
@@ -198,6 +99,45 @@ class LayersEmbeddingAllMeasurements(Callback):
                     temp2_after_conv = hp.smooth_the_data_moving_average(hp.second_order_derivate(temp_after_conv), 50)
                     second_derivative_sum_after_conv += np.sum(np.absolute(temp2_after_conv))
             self.second_derivatives[layers][0], self.second_derivatives[layers][1] = second_derivative_sum_before_conv, second_derivative_sum_after_conv
+
+class LayersEmbeddingAllMeasurementsThreaded(Callback):
+    """
+    returns:
+             sum of second derivatives of weights before convergence
+             sum of second derivative of weights after convergence
+    """
+    def __init__(self, number_of_epochs = 300, number_of_train_points = 299, batch_size = 20):
+        super(LayersEmbeddingAllMeasurementsThreaded, self).__init__()
+        self.batch_num = 0
+        self.list = []
+        self.losses_val =[]
+        self.number_of_batches_per_epoch = int(number_of_train_points/batch_size)
+        self.num_of_time_steps = int(number_of_epochs * self.number_of_batches_per_epoch)
+
+    def on_train_begin(self, logs=None):
+        #Create the list of 3d array
+        for i in range(1,len(self.model.layers)):
+            arr = np.zeros((self.num_of_time_steps, self.model.layers[i].get_weights()[0].shape[0], self.model.layers[i].get_weights()[0].shape[1]))
+            self.list.append(arr)
+        self.second_derivatives = np.zeros((len(self.model.layers) - 1,2))
+
+    def on_epoch_end(self, epoch, logs=None):
+        self.losses_val.append(logs.get('val_loss'))
+
+    def on_batch_end(self, batch, logs=None):
+        if self.list[0].shape[0] > self.batch_num: #Just to make sure we calculated the banch_number correctly
+            for layers in range(0,len(self.list)):
+                self.list[layers][self.batch_num] = self.model.layers[layers+1].get_weights()[0]
+        self.batch_num += 1
+
+    def on_train_end(self, logs=None):
+        #Calculate convergence point
+        convergence_time_step = (hp.convergence_of_NN_val_loss(self.losses_val,4) * self.number_of_batches_per_epoch) - 1
+        #Calculating the data
+        start_threading = hpt.LayersThreading(self.second_derivatives, self.list , convergence_time_step)
+        start_threading.calculate()
+        print(self.second_derivatives)
+
 
 class WeightVarianceTest(Callback):
     def __init__(self, number_of_context_layers=3):

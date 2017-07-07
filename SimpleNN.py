@@ -1,13 +1,23 @@
 import numpy as np
 import matplotlib.pyplot as pll
-l = []
+import threading
+g = np.zeros((5,1))
+class Mythread(threading.Thread):
+    def __init__(self, i, h):
+        super(Mythread, self).__init__()
+        self.i = i
+        self.h = h
+    def run(self):
+        self.h[self.i][0] = self.i
+        return self.i
+list1 = []
+j = 0
+for i in range(0,5):
+    list1.append(Mythread(i, g))
+    list1[-1].start()
 
-g = np.zeros((2,1))
-l.append(g)
-g = np.ones((2,1))
-l.append(g)
-print(l[:,0])
-s = []
-s.append(l[:,0])
-s.append(l[:,1])
-print(s[:,0])
+for i in range(0, 5):
+    list1[i].join()
+print(j)
+
+

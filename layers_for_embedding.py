@@ -6,17 +6,20 @@ import random as rn
 import numpy as np
 from math import exp
 
-dataset = np.loadtxt("new.txt", delimiter=" ")
-X = dataset[0:-101,0:2]
-Y = dataset[0:-101,2:5]
-x_test = dataset[-101:-1,0:2]
-y_test = dataset[-101:-1,2:5]
-
+dataset = np.loadtxt("data_for_real1.txt", delimiter=" ")
+X = dataset[0:-101, 0:2]
+Y = dataset[0:-101, 2:5]
+x_test = dataset[-101:-1, 0:2]
+y_test = dataset[-101:-1, 2:5]
 #Types of layers used
 c = ['relu' , 'tanh' , 'sigmoid' ]
 num_of_ouputs = 3
-
+num_of_layers_tot = 5
+num_of_tries_tot = 5
 measurement_array = np.zeros((3,13,10)) #Where last number is number of measurements
+
+number_of_epochs, number_of_training_examples, batch_size = 150, X.shape[0], 10
+
 
 #Observe for number of context units
 for i in range(0,3):
@@ -24,13 +27,13 @@ for i in range(0,3):
     for units in range(3,16):
         #Measurement Values
         convergence_points = []
-        second_order_before_conv = []
-        second_order_after_conv = []
+        second_order_before_conv = np.zeros((num_of_layers_tot, num_of_tries_tot))
+        second_order_after_conv = np.zeros((num_of_layers_tot, num_of_tries_tot))
         act_units = int(1.6**(units))
-        for num_of_try in range(0,5):
+        for num_of_try in range(0,num_of_tries_tot):
             #choosing activation function
-            layers, input = Input(shape=(2,))
-            layers = Dense(act_units, activation=c[i])(layers)
+            input = Input(shape=(2,))
+            layers = Dense(act_units, activation=c[i])(input)
             layers = Dense(40, activation=c[0])(layers)
             layers = Dense(30, activation=c[1])(layers)
             layers = Dense(20, activation=c[2])(layers)
@@ -39,17 +42,20 @@ for i in range(0,3):
             model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
 
             #Create callback
-            weight_variance_history = MyCallbacks.LayersEmbeddingAllMeasurements()
+            weight_variance_history = MyCallbacks.LayersEmbeddingAllMeasurements(number_of_epochs, number_of_training_examples, batch_size)
+            val_loss_history = MyCallbacks.ValLossHistory()
 
             #Fit the model
-            model.fit(X, Y, epochs=150, batch_size=10, validation_data=(x_test, y_test),
-                      callbacks=[weight_variance_history], shuffle=True)
+            model.fit(X, Y, epochs=number_of_epochs, batch_size=batch_size, validation_data=(x_test, y_test),
+                      callbacks=[weight_variance_history, val_loss_history], shuffle=True)
             #Append measured values
-            convergence_points.append(weight_variance_history.convergence_time_step)
-            second_order_before_conv.append(weight_variance_history.second_derivative_sum_before_conv)
-            second_order_after_conv.append(weight_variance_history.second_derivative_sum_after_conv)
+            convergence_points.append(hp.convergence_of_NN_val_loss(val_loss_history.losses, 4))
+            second_order_before_conv[:][num_of_try] = weight_variance_history.second_derivatives[:,0]
+            second_order_after_conv[:][num_of_try] = weight_variance_history.second_derivatives[:, 1]
 
         #Calculate the standard deviations and put the measurements in the array
-        measurement_array[i][units - 3][0] , measurement_array[i][units - 3][1] = hp.mean_and_std(second_order_before_conv)
-        measurement_array[i][units - 3][2], measurement_array[i][units - 3][3] = hp.mean_and_std(second_order_after_conv)
-        measurement_array[i][units - 3][4], measurement_array[i][units - 3][5] = hp.mean_and_std(convergence_points)
+        for num_of_layers in range(0, num_of_layers_tot):
+            measurement_array[i][units - 3][num_of_layers*4 + 0] , measurement_array[i][units - 3][num_of_layers*4 + 1] = hp.mean_and_std(second_order_before_conv[num_of_layers][:])
+            measurement_array[i][units - 3][num_of_layers*4 + 2], measurement_array[i][units - 3][num_of_layers*4 + 3] = hp.mean_and_std(second_order_after_conv[num_of_layers][:])
+
+        measurement_array[i][units - 3][num_of_layers_tot*4 + 0], measurement_array[i][units - 3][num_of_layers_tot*4 + 1] = hp.mean_and_std(convergence_points)

@@ -149,7 +149,7 @@ class AccHistory(Callback):
 
 class LayersEmbeddingAllMeasurements(Callback):
     """
-    returns: convergence point (what epoch the model converged)
+    returns:
              sum of second derivatives of weights before convergence
              sum of second derivative of weights after convergence
     """
@@ -161,38 +161,43 @@ class LayersEmbeddingAllMeasurements(Callback):
         self.losses_val =[]
         self.number_of_batches_per_epoch = int(number_of_train_points/batch_size)
         self.num_of_time_steps = int(number_of_epochs * self.number_of_batches_per_epoch)
-        self.second_derivative_sum_before_conv = 0
-        self.second_derivative_sum_after_conv = 0
-        self.convergence_time_step = 0
+
+
+
 
     def on_train_begin(self, logs=None):
         #Create the list of 3d array
         for i in range(1,len(self.model.layers)):
-            arr = np.zeros((self.num_of_time_steps, self.model.layers[i].shape[0], self.model.layers[i].shape[1]))
+            arr = np.zeros((self.num_of_time_steps, self.model.layers[i].get_weights()[0].shape[0], self.model.layers[i].get_weights()[0].shape[1]))
             self.list.append(arr)
+        self.second_derivatives = np.zeros((len(self.model.layers) - 1,2))
 
     def on_epoch_end(self, epoch, logs=None):
         self.losses_val.append(logs.get('val_loss'))
 
     def on_batch_end(self, batch, logs=None):
-        for layers in range(0,len(self.list)):
-            self.list[layers][self.batch_num] = self.model.layers[layers+1].get_weights()[0]
+        if self.list[0].shape[0] > self.batch_num: #Just to make sure we calculated the banch_number correctly
+            for layers in range(0,len(self.list)):
+                self.list[layers][self.batch_num] = self.model.layers[layers+1].get_weights()[0]
         self.batch_num += 1
 
 
     def on_train_end(self, logs=None):
         #Calculate convergence point
-        self.convergence_time_step = (hp.convergence_of_NN_val_loss(self.losses_val,4) * self.number_of_batches_per_epoch) - 1
+        convergence_time_step = (hp.convergence_of_NN_val_loss(self.losses_val,4) * self.number_of_batches_per_epoch) - 1
         #Smoothing out data
         for layers in range(0, len(self.list)):
+            second_derivative_sum_before_conv = 0
+            second_derivative_sum_after_conv = 0
             for axis_0 in range(0, self.list[layers].shape[1]):
                 for axis_1 in range(0, self.list[layers].shape[2]):
-                    temp_before_conv = hp.smooth_the_data_moving_average(self.list[layers][0:self.convergence_time_step][axis_0][axis_1], 240)
-                    temp2_before_conv = hp.smooth_the_data_moving_average(hp.second_order_derivate(temp_before_conv), 240)
-                    self.second_derivative_sum_before_conv += np.sum(np.square(temp2_before_conv))
-                    temp_after_conv = hp.smooth_the_data_moving_average(self.list[layers][self.convergence_time_step:-1][axis_0][axis_1], 240)
-                    temp2_after_conv = hp.smooth_the_data_moving_average(hp.second_order_derivate(temp_after_conv), 240)
-                    self.second_derivative_sum_after_conv += np.sum(np.square(temp2_after_conv))
+                    temp_before_conv = hp.smooth_the_data_moving_average(self.list[layers][0:convergence_time_step,axis_0,axis_1], 240)
+                    temp2_before_conv = hp.smooth_the_data_moving_average(hp.second_order_derivate(temp_before_conv), 50)
+                    second_derivative_sum_before_conv += np.sum(np.absolute(temp2_before_conv))
+                    temp_after_conv = hp.smooth_the_data_moving_average(self.list[layers][convergence_time_step:-1,axis_0,axis_1], 240)
+                    temp2_after_conv = hp.smooth_the_data_moving_average(hp.second_order_derivate(temp_after_conv), 50)
+                    second_derivative_sum_after_conv += np.sum(np.absolute(temp2_after_conv))
+            self.second_derivatives[layers][0], self.second_derivatives[layers][1] = second_derivative_sum_before_conv, second_derivative_sum_after_conv
 
 class WeightVarianceTest(Callback):
     def __init__(self, number_of_context_layers=3):

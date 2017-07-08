@@ -1,3 +1,4 @@
+import numpy as np
 dataset = np.loadtxt("units_of_first_layer.txt", delimiter=" ")
 X = dataset[:, 0:1]
 Y = dataset[:, 1:2]

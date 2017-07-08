@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 
 from math import exp
 
-dataset = np.loadtxt("new.txt", delimiter=" ")
+dataset = np.loadtxt("data_for_real1.txt", delimiter=" ")
 X = dataset[0:-101, 0:2]
 Y = dataset[0:-101, 2:5]
 x_test = dataset[-101:-1, 0:2]
@@ -19,13 +19,17 @@ y_test = dataset[-101:-1, 2:5]
 c = ['relu', 'tanh', 'sigmoid']
 num_of_ouputs = 3
 input = Input(shape=(2,))
-output = Dense(num_of_ouputs, activation='linear')(input)
+layers = Dense(1000, activation=c[0])(input)
+layers = Dense(700, activation=c[0])(layers)
+layers = Dense(50, activation=c[1])(layers)
+layers = Dense(20, activation=c[1])(layers)
+output = Dense(num_of_ouputs, activation='sigmoid')(layers)
 model = Model(inputs=input, outputs=output)
 model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
 
 acc_his = MyCallbacks.AccHistoryEpochTest()
 
-model.fit(X, Y, epochs=500, batch_size=10, validation_data=(x_test, y_test),
+model.fit(X, Y, epochs=200, batch_size=10, validation_data=(x_test, y_test),
           callbacks=[acc_his], shuffle=True)
 print(hp.convergence_of_NN_val_loss(acc_his.losses_val_losses,10))
 plt.plot(acc_his.losses, 'b-', acc_his.losses_val, 'r-')

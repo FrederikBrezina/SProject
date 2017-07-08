@@ -37,12 +37,12 @@ NNs = np.zeros((1000,max_layer,2))
 #[1] -> standard deviation of the epochs convergence
 #[2] -> robustness to advesarial examples
 #[3] -> standard deviation of the one above
-#[4] -> average of sum of top10 largest weights
-#[5] -> standard deviation of above
-#[6] -> average of sum of standard deviations of top 10 largest weights
-#[7] -> standard deviation of above
-#[8] -> weight distance traveled
-#[9] -> standard deviation of above
+#[4] ->
+#[5] ->
+#[6] ->
+#[7] ->
+#[8] ->
+#[9] ->
 #[10] -> mean rate of convergence (as a epoch series) where rate is probability of that epoch
 #[11] -> standard deviation of above
 #[12] -> mean standard deviation of each of convergance as [10]
@@ -81,9 +81,6 @@ for i in range(0,1000):
     acc_hist_list = []
     val_acc_hist_list = []
     convergence_list = []
-    weight_avg = []
-    weight_dev_avg = []
-    weight_distance = []
     rate_of_val_acc = []
     epoch_acc_hist_list = []
 
@@ -99,7 +96,7 @@ for i in range(0,1000):
         val_loss_hist = MyCallbacks.ValLossHistory()
         acc_hist = MyCallbacks.AccHistory()
         val_acc_hist = MyCallbacks.ValAccHistory()
-        weight_variance_history = MyCallbacks.WeightVarianceHistory()
+
 
         model.fit(X, Y, epochs=150, batch_size=10, validation_data=(x_test, y_test), callbacks=[loss_hist, val_loss_hist, acc_hist, val_acc_hist, weight_variance_history])
 
@@ -109,18 +106,15 @@ for i in range(0,1000):
         val_loss_hist_list.append(val_loss_hist.losses)
         acc_hist_list.append(acc_hist.losses)
         val_acc_hist_list.append(val_acc_hist.losses)
-        weight_avg.append(weight_variance_history.weight_var[0])
-        weight_dev_avg.append(weight_variance_history.weight_var[1])
-        weight_distance.append(weight_variance_history.model_change_average)
         rate_of_val_acc.append(hp.rate_of_list(val_acc_hist.losses[0:convergence_list[-1]])) #Take into account only up to convergence, some models do not have overfitting
         epoch_acc_hist_list.append(acc_hist.lossesEpoch)
 
     #Putting to feedable format to RNN
     Results[i][0],Results[i][1] = hp.mean_and_std(convergence_list)
     Results[i][2], Results[i][3] =
-    Results[i][4], Results[i][5] = hp.mean_and_std(weight_avg)
-    Results[i][6], Results[i][7] = hp.mean_and_std(weight_dev_avg)
-    Results[i][8], Results[i][9] = hp.mean_and_std(weight_distance)
+    Results[i][4], Results[i][5] =
+    Results[i][6], Results[i][7] =
+    Results[i][8], Results[i][9] =
     Results[i][10], Results[i][11], Results[i][12], Results[i][13], Results[i][14], Results[i][15], Results[i][16], Results[i][17] = hp.mean_and_std_of_list_of_lists(rate_of_val_acc)
     Results[i][18], Results[i][19], Results[i][20], Results[i][21] = hp.avg_and_std_of_overfitting(acc_hist_list, val_acc_hist_list, convergence_list)
     Results[i][22], Results[i][23] = hp.mean_and_std_of_performance_list_of_lists(val_acc_hist_list)

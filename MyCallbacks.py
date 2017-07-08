@@ -119,7 +119,7 @@ class LayersEmbeddingAllMeasurementsThreaded(Callback):
         for i in range(1,len(self.model.layers)):
             arr = np.zeros((self.num_of_time_steps, self.model.layers[i].get_weights()[0].shape[0], self.model.layers[i].get_weights()[0].shape[1]))
             self.list.append(arr)
-        self.second_derivatives = np.zeros((len(self.model.layers) - 1,2))
+        self.second_derivatives = np.zeros((len(self.model.layers) - 1,5))
 
     def on_epoch_end(self, epoch, logs=None):
         self.losses_val.append(logs.get('val_loss'))

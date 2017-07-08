@@ -12,7 +12,7 @@ def convergence_of_NN_val_loss(val_loss, convergence_rate = 4):
     for i in range (2, (convergence_rate+2)):
         if val_loss[-i]>val_loss[1-i]:
             x = val_loss[-i]
-    diff = (x - val_loss[-1])/2
+    diff = (x - val_loss[-1])/(2.75)
     #clip the diff in case
     # if diff>0.07:
     #     diff = 0.07
@@ -172,25 +172,6 @@ def avg_and_std_of_overfitting(traing_acc_list_of_lists, validation_acc_list_of_
         rate_list.append(rate)
     return [mean_and_std(index_list) , mean_and_std(rate_list)]
 
-def handle_weight_variance_for_layers(list_of_weight_matrices):
-    weight_data = []
-    #set up the empty list
-    for layers in range(0,len(list_of_weight_matrices)):
-        weight_data.append(np.zeros_like(list_of_weight_matrices[layers][0]))
-    #Calculate the data
-    for layers in range(0,len(list_of_weight_matrices)):
-        for axis_0 in range(0, list_of_weight_matrices[layers][0].shape[0]):
-            for axis_1 in range(0, list_of_weight_matrices[layers][0].shape[1]):
-                last_diff = list_of_weight_matrices[layers][0][axis_0][axis_1] - list_of_weight_matrices[layers][1][axis_0][axis_1]
-                for time_step in range(1, len(list_of_weight_matrices[layers]) - 1):
-                    act_diff = list_of_weight_matrices[layers][time_step][axis_0][axis_1] - list_of_weight_matrices[layers][time_step + 1][axis_0][axis_1]
-                    if np.sign(last_diff) != np.sign(act_diff):
-                        weight_data[layers][axis_0][axis_1] += 1
-                    last_diff = act_diff
-
-
-    return weight_data
-
 def second_order_derivate(list_of_values):
     return_list = first_order_derivative(list_of_values)
     return_list = first_order_derivative(return_list)
@@ -213,3 +194,24 @@ def smooth_the_data_moving_average(list_of_values, range_of_average = 70):
         sum /= num_of_points_in_average
         smoothed_data.append(sum)
     return smoothed_data
+
+#########################################################################
+#Definitions which are now redundant
+def handle_weight_variance_for_layers(list_of_weight_matrices):
+    weight_data = []
+    #set up the empty list
+    for layers in range(0,len(list_of_weight_matrices)):
+        weight_data.append(np.zeros_like(list_of_weight_matrices[layers][0]))
+    #Calculate the data
+    for layers in range(0,len(list_of_weight_matrices)):
+        for axis_0 in range(0, list_of_weight_matrices[layers][0].shape[0]):
+            for axis_1 in range(0, list_of_weight_matrices[layers][0].shape[1]):
+                last_diff = list_of_weight_matrices[layers][0][axis_0][axis_1] - list_of_weight_matrices[layers][1][axis_0][axis_1]
+                for time_step in range(1, len(list_of_weight_matrices[layers]) - 1):
+                    act_diff = list_of_weight_matrices[layers][time_step][axis_0][axis_1] - list_of_weight_matrices[layers][time_step + 1][axis_0][axis_1]
+                    if np.sign(last_diff) != np.sign(act_diff):
+                        weight_data[layers][axis_0][axis_1] += 1
+                    last_diff = act_diff
+
+
+    return weight_data

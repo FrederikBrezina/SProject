@@ -14,6 +14,7 @@ class LayersThreading():
         for thread in thread_list:
             thread.join()
 
+
 class UnitsThreading(Thread):
     def __init__(self,layers_second_derivative,weights_array, convergence_time_step, layer_index, unit_index_axis_0, unit_index_axis_1):
         super(UnitsThreading, self).__init__()

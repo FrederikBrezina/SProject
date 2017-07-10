@@ -12,13 +12,20 @@ class LossHistory(Callback):
     def on_batch_end(self, batch, logs={}):
         self.losses.append(logs.get('loss'))
 
+class LossHistoryEpoch(Callback):
+    def on_train_begin(self, logs={}):
+        self.losses = []
+
+    def on_epoch_end(self, epoch, logs={}):
+        self.losses.append(logs.get('loss'))
+
 class AccHistoryEpochTest(Callback):
     def on_train_begin(self, logs=None):
         self.losses = []
         self.losses_val = []
         self.losses_val_losses = []
 
-    def on_epoch_end(self, epoch, logs=None):
+    def on_epoch_end(self, epoch, logs={}):
         self.losses.append(logs.get('acc'))
         self.losses_val.append(logs.get('val_acc'))
         self.losses_val_losses.append(logs.get('val_loss'))
@@ -119,6 +126,7 @@ class LayersEmbeddingAllMeasurementsThreaded(Callback):
         for i in range(1,len(self.model.layers)):
             arr = np.zeros((self.num_of_time_steps, self.model.layers[i].get_weights()[0].shape[0], self.model.layers[i].get_weights()[0].shape[1]))
             self.list.append(arr)
+
         self.second_derivatives = np.zeros((len(self.model.layers) - 1,5))
 
     def on_epoch_end(self, epoch, logs=None):
@@ -136,7 +144,7 @@ class LayersEmbeddingAllMeasurementsThreaded(Callback):
         #Calculating the data
         start_threading = hpt.LayersThreading(self.second_derivatives, self.list , convergence_time_step)
         start_threading.calculate()
-        print(self.second_derivatives)
+
 
 
 class WeightVarianceTest(Callback):

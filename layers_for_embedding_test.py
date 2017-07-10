@@ -13,16 +13,16 @@ def main():
     x_test = dataset[-101:-1, 0:2]
     y_test = dataset[-101:-1, 2:5]
 
-    epochs = 150
+    epochs = 300
     batch_size = 20
     # Types of layers used
     c = ['relu', 'tanh', 'sigmoid']
     num_of_ouputs = 3
     input = Input(shape=(2,))
-    layers = Dense(100, activation=c[0])(input)
-    layers = Dense(20, activation=c[1])(layers)
-    layers = Dense(5, activation=c[1])(layers)
-    layers = Dense(5, activation=c[2])(layers)
+    layers = Dense(1200, activation=c[0])(input)
+    layers = Dense(40, activation=c[1])(layers)
+    layers = Dense(30, activation=c[1])(layers)
+    layers = Dense(20, activation=c[2])(layers)
     output = Dense(num_of_ouputs, activation='sigmoid')(layers)
     model = Model(inputs=input, outputs=output)
     model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])

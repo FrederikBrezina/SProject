@@ -142,8 +142,8 @@ class LayersEmbeddingAllMeasurementsThreaded(Callback):
         #Calculate convergence point
         convergence_time_step = (hp.convergence_of_NN_val_loss(self.losses_val,4) * self.number_of_batches_per_epoch) - 1
         #Calculating the data
-        start_threading = hpt.LayersThreading(self.second_derivatives, self.list , convergence_time_step)
-        start_threading.calculate()
+        hpt.calculate(self.second_derivatives, self.list , convergence_time_step)
+
 
 
 

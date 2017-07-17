@@ -2,12 +2,10 @@ import numpy as np
 np.random.seed(7)
 from keras.models import Model
 from keras.layers import Input, Dense
-import MyCallbacks
-import HelpFunctions as hp
-import random as rn
+
 import matplotlib.pyplot as plt
 
-from math import exp
+
 
 dataset = np.loadtxt("units_of_first_layer.txt", delimiter=" ")
 

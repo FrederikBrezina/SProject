@@ -1,14 +1,8 @@
 from multiprocessing import Pool
 import numpy as np
+import tensorflow as tf
+from pathos.multiprocessing import ProcessingPool as Pool
+get_bin = lambda x, n: format(x, 'b').zfill(n)
+g =''+ get_bin(1,10)
+print(g)
 
-def f(f,x,y):
-
-    return [x**2, x*y]
-
-if __name__ == '__main__':
-    h = np.zeros((3,2))
-    with Pool(5) as p:
-       j = p.starmap(f, [[h,0,3], [h,1,3], [h,2,3]])
-    for k in range(0, len(j)):
-        h[k][:] += j[k][0:len(j[0])]
-    print(h)

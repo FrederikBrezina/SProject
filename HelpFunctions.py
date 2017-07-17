@@ -114,8 +114,10 @@ def std_in_time_series(value_list):
 
 def overfitting_all_values(list_of_loss, list_of_val_loss, conv_epoch):
     diff_list = []
+    diff_list.append(0)
+    diff_list.append(0)
     for epoch in range(0, len(list_of_loss)):
-        diff = list_of_loss[epoch] - list_of_val_loss[epoch]
+        diff = list_of_val_loss[epoch] - list_of_loss[epoch]
         diff_list.append(diff)
     #Adujusting conv_epoch by two as second order derivative eats 2 more points
     if conv_epoch > 2:

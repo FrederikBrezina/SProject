@@ -1,8 +1,6 @@
-import python_tes1 as pt1
-from itertools import repeat
 import numpy as np
-g = []
-h = np.zeros((2,2))
-g.append([h,2,3])
-g.append([h,3,5])
-print(g)
+f = '0010101'
+d = '010101'
+g = [[int(f,base=2), 3], [int(d,base=2), 4]]
+np.savetxt('testy1.txt', g, delimiter=" ")
+print(np.loadtxt('testy1.txt'))

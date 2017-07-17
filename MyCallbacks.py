@@ -1,6 +1,5 @@
 from keras.callbacks import Callback
 import numpy as np
-import matplotlib.pyplot as plt
 import HelpFunctions as hp
 import HelpFunctionsThreading as hpt
 

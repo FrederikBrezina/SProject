@@ -1,9 +1,15 @@
 import tensorflow as tf
 import numpy as np
-f = [4 , 3, 2 ,1 ,0]
-g = f[0:4]
-h = f[1:5]
 
-k = tf.subtract(g,h) + tf.subtract(h,g)
+f = np.random.rand(3,3)
+h = np.random.rand(3,3)
+
+
+f = f[:,0]
+h = h[:,0]
+o  = [0,0]
+o[0] = tf.subtract(f,h) + tf.subtract(h,f)
+
+o[1] = tf.subtract(f,h)
 ses = tf.Session()
-print(ses.run(k))
+print(ses.run(o))

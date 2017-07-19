@@ -6,8 +6,7 @@ import MyCallbacks
 import random
 import HelpFunctions as hp
 
-
-data = np.zeros((1000,9))
+data = np.zeros((500,9))
 data_p = [500, 3000]
 line = 0
 dic = {}
@@ -37,10 +36,10 @@ for points in range(0,1):
         if '{:d}'.format(hash(hash_str)) in dic:
             continue
         dic['{:d}'.format(hash(hash_str))] = hash_str
-
+        print nn/5
         #data to monitor
         conv_epoch, max_acc, max_val_acc, diff_of_over_fitting_at_conv = [], [], [], []
-        for tries in range(0,2):
+        for tries in range(0,5):
             input = Input(shape=(2,))
             for layer in range(0,3):
                 if layer ==0 :
@@ -50,11 +49,10 @@ for points in range(0,1):
 
             output = Dense(num_of_ouputs, activation='sigmoid')(layers)
             model = Model(inputs=input, outputs=output)
-
             model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
             acc_his = MyCallbacks.AccHistoryEpochTest()
 
-            model.fit(X, Y, epochs=40, batch_size=16, validation_data=(x_test, y_test),
+            model.fit(X, Y, epochs=200, batch_size=20, validation_data=(x_test, y_test),
                       callbacks=[acc_his], shuffle=True)
             #Data Calculation
             conv_epoch.append(hp.convergence_of_NN_val_loss(acc_his.losses_val_losses,4))

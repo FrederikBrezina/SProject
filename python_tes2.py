@@ -1,6 +1,8 @@
 import numpy as np
-f = '0010101'
-d = '010101'
-g = [[int(f,base=2), 3], [int(d,base=2), 4]]
-np.savetxt('testy1.txt', g, delimiter=" ")
-print(np.loadtxt('testy1.txt'))
+g = []
+for i in range(0,3):
+    g.append([])
+
+g[0].append(3)
+g[0].append(2)
+print(min(g[0]))

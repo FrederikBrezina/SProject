@@ -1,30 +1,32 @@
 import numpy as np
 from multiprocessing import Pool
 import HelpFunctions as hp
+import tensorflow as tf
 
 def calculate(layers_second_derivative, weights_array, convergence_time_step):
     thread_list = []
     for layers in range(0, len(weights_array)):
-        for axis_0 in range(0, weights_array[layers].shape[1]):
-            for axis_1 in range(0, weights_array[layers].shape[2]):
-                thread_list.append([weights_array, convergence_time_step, layers, axis_0, axis_1])
-    with Pool() as p:
-        results = p.starmap(run, thread_list)
-    for result in results:
-        layers_second_derivative[result[0]][:] += result[1:len(result)]
+        layers_second_derivative = second_order(weights_array,convergence_time_step,layers)
 
-def run(weights_array,convergence_time_step,layer_index, unit_index_axis_0, unit_index_axis_1 ):
-    temp_before_conv = hp.smooth_the_data_moving_average(weights_array[layer_index][0:convergence_time_step, unit_index_axis_0, unit_index_axis_1],
-                                                         240)
-    temp2_before_conv = hp.smooth_the_data_moving_average(hp.second_order_derivate(temp_before_conv), 50)
-    a = np.sum(np.absolute(temp2_before_conv))
-    b = np.sum(temp2_before_conv)
-    temp_after_conv = hp.smooth_the_data_moving_average(weights_array[layer_index][convergence_time_step:-1, unit_index_axis_0, unit_index_axis_1],
-                                                        240)
-    temp2_after_conv = hp.smooth_the_data_moving_average(hp.second_order_derivate(temp_after_conv), 50)
-    c = np.sum(np.absolute(temp2_after_conv))
-    d = np.sum(temp2_after_conv)
 
-    #calculated squared sum
-    e = np.sum(np.square(temp2_before_conv))
-    return [layer_index, a , b ,c ,d , e]
+
+def second_order (weights_array,convergence_time_step,layer_index):
+
+    a = tf.constant(weights_array[layer_index][0:-2,:,:])
+    b = tf.constant(weights_array[layer_index][1:-1,:,:])
+    s = tf.subtract(b,a)
+    s = tf.subtract(s[1:-1,:,:],s[0:-2,:,:])
+    results = [0, 0 ,0 ,0]
+
+    square = tf.square(s)
+    results[0] = tf.reduce_sum(square[0:convergence_time_step-1,:,:])
+    results[1] = tf.reduce_sum(square[convergence_time_step-1:-1,:,:])
+
+    cubic = tf.multiply(s,s)
+    cubic = tf.multiply(s, cubic)
+    results[2] = tf.reduce_sum(cubic[0:convergence_time_step-1,:,:])
+    results[3] = tf.reduce_sum(cubic[convergence_time_step-1:-1,:,:])
+    ses = tf.Session()
+    results = ses.run(results)
+
+    return results

@@ -2,25 +2,29 @@ import numpy as np
 def convergence_of_NN_val_loss(val_loss, convergence_rate = 4):
     #Smaller the better
     #Find the best model
+
     index = val_loss.index(min(val_loss))
     #Take into account only the curve before the best model
-    val_loss = val_loss[0:(index +1)]
+    val_loss1 = val_loss[0:(index +1)]
     #Find the lowest point before the best model
     #The number before the best model to search through
     #is convergence rate
     x = val_loss[-1]
+    leng = len(val_loss1)
+    if leng<4 :
+        return 1
     for i in range (2, (convergence_rate+2)):
-        if val_loss[-i]>val_loss[1-i]:
-            x = val_loss[-i]
-    diff = (x - val_loss[-1])/(2.75)
+        if val_loss1[-i]>val_loss1[1-i]:
+            x = val_loss1[-i]
+    diff = (x - val_loss1[-1])/(2.75)
     #clip the diff in case
     # if diff>0.07:
     #     diff = 0.07
     for i in range(0, len(val_loss)):
-        if (val_loss[i] - diff) <= val_loss[-1]:
+        if (val_loss[i] - diff) <= val_loss1[-1]:
             return (i+1)
 
-    return len(val_loss)
+    return len(val_loss1)
 
 def highest_accuracy_of_NN(val_acc):
     return max(val_acc)

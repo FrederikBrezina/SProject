@@ -3,6 +3,35 @@ import numpy as np
 import HelpFunctions as hp
 import HelpFunctionsThreading as hpt
 
+class MultiModelLosses(Callback):
+    def __init__(self, number_of_outputs):
+        super(MultiModelLosses, self).__init__()
+        self.number_of_outputs = number_of_outputs
+    def on_train_begin(self, logs=None):
+        self.losses = []
+        self.val_losses = []
+        for output in range(0,self.number_of_outputs):
+            self.losses.append([])
+            self.val_losses.append([])
+    def on_epoch_end(self, epoch, logs={}):
+        for output in range(0,self.number_of_outputs):
+            self.losses[output].append(logs.get('output' + str(output) + '_loss'))
+            self.val_losses[output].append(logs.get('val_output' + str(output) + '_loss'))
+
+class MultiModelAcc(Callback):
+    def __init__(self, number_of_outputs):
+        super(MultiModelAcc, self).__init__()
+        self.number_of_outputs = number_of_outputs
+    def on_train_begin(self, logs=None):
+        self.acc = []
+        self.val_acc = []
+        for output in range(0,self.number_of_outputs):
+            self.acc.append([])
+            self.val_acc.append([])
+    def on_epoch_end(self, epoch, logs={}):
+        for output in range(0,self.number_of_outputs):
+            self.acc[output].append(logs.get('output' + str(output) + '_acc'))
+            self.val_acc[output].append(logs.get('val_output' + str(output) + '_acc'))
 
 class LossHistory(Callback):
     def on_train_begin(self, logs={}):

@@ -11,7 +11,7 @@ def convergence_of_NN_val_loss(val_loss, convergence_rate = 4):
     #is convergence rate
     x = val_loss[-1]
     leng = len(val_loss1)
-    if leng<4 :
+    if leng<5 :
         return 1
     for i in range (2, (convergence_rate+2)):
         if val_loss1[-i]>val_loss1[1-i]:
@@ -24,7 +24,7 @@ def convergence_of_NN_val_loss(val_loss, convergence_rate = 4):
         if (val_loss[i] - diff) <= val_loss1[-1]:
             return (i+1)
 
-    return len(val_loss1)
+    return leng
 
 def highest_accuracy_of_NN(val_acc):
     return max(val_acc)

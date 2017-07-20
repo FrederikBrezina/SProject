@@ -1,17 +1,16 @@
 import numpy as np
-np.random.seed(7)
 from keras.models import Model
 from keras.layers import Input, Dense
 import MyCallbacks
 import random
 import HelpFunctions as hp
 
-data = np.zeros((1000,12))
+data = np.zeros((700,12))
 data_p = [500, 3000]
 line = 0
 dic = {}
 get_bin = lambda x, n: format(x, 'b').zfill(n)
-std_tries = 9
+std_tries = 7
 for points in range(0,1):
     data_points = data_p[points]
     dataset = np.loadtxt("new_training_for_simple_reg.txt", delimiter=" ")
@@ -29,7 +28,7 @@ for points in range(0,1):
     c1 = ['01', '10']
     num_of_ouputs = 3
 
-    for nn in range(0,1000):
+    for nn in range(0,700):
         hash_str = ''
         layers_val = np.zeros((10,2))
         depth = random.randint(1,10)
@@ -48,21 +47,23 @@ for points in range(0,1):
         outputs = []
         inputs = Input(shape=(2,))
         for tries in range(0, std_tries):
-            for layer in range(0, depth):
-                if layer == 0:
-                    layers = Dense(int(layers_val[layer][0]), activation=c[int(layers_val[layer][1])])(inputs)
-                else:
-                    layers = Dense(int(layers_val[layer][0]), activation=c[int(layers_val[layer][1])])(layers)
+            layers = Dense(int(layers_val[0][0]), activation=c[int(layers_val[0][1])])
+            layers2 = layers(inputs)
+            for layer in range(1, depth):
+                layers = Dense(int(layers_val[layer][0]), activation=c[int(layers_val[layer][1])])
+                layers2 = layers(layers2)
 
             name = 'output{0:d}'.format(tries)
-            output = Dense(num_of_ouputs, activation='sigmoid', name=name)(layers)
+            output2 = Dense(num_of_ouputs, activation='sigmoid', name=name)
+            output = output2(layers2)
             outputs.append(output)
+
         model = Model(inputs=inputs, outputs=outputs)
         model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
         acc_his = MyCallbacks.MultiModelAcc(std_tries)
         loss_his = MyCallbacks.MultiModelLosses(std_tries)
 
-        model.fit(X, Y_list, epochs=40, batch_size=20,
+        model.fit(X, Y_list, epochs=200, batch_size=20,
                   validation_data=(x_test, Y_test),
                   callbacks=[acc_his, loss_his], shuffle=True)
         # Data Calculation
@@ -80,6 +81,6 @@ for points in range(0,1):
         data[line][5], data[line][6] = hp.mean_and_std(conv_epoch)
         data[line][7], data[line][8] = hp.mean_and_std(diff_of_over_fitting_at_conv)
         data[line][9], data[line][10] = hp.mean_and_std(min_val_loss)
-        data[line][11] = depth
+        data[line][11] = depth + 1
         line += 1
 np.savetxt('num_of_layers_var_rand_units_rand_act_for_all.txt', data, delimiter=" ")

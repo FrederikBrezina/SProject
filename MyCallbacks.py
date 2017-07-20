@@ -2,6 +2,7 @@ from keras.callbacks import Callback
 import numpy as np
 import HelpFunctions as hp
 import HelpFunctionsThreading as hpt
+import HelpFunctionsGPU as hpgpu
 
 class MultiModelLosses(Callback):
     def __init__(self, number_of_outputs):
@@ -155,7 +156,7 @@ class LayersEmbeddingAllMeasurementsThreaded(Callback):
             arr = np.zeros((self.num_of_time_steps, self.model.layers[i].get_weights()[0].shape[0], self.model.layers[i].get_weights()[0].shape[1]))
             self.list.append(arr)
 
-        self.second_derivatives = np.zeros((len(self.model.layers) - 1,5))
+        self.second_derivatives = np.zeros((len(self.model.layers) - 1,4))
 
     def on_epoch_end(self, epoch, logs=None):
         self.losses_val.append(logs.get('val_loss'))
@@ -170,7 +171,8 @@ class LayersEmbeddingAllMeasurementsThreaded(Callback):
         #Calculate convergence point
         convergence_time_step = (hp.convergence_of_NN_val_loss(self.losses_val,4) * self.number_of_batches_per_epoch) - 1
         #Calculating the data
-        hpt.calculate(self.second_derivatives, self.list , convergence_time_step)
+        hpgpu.calculate(self.second_derivatives, self.list , convergence_time_step)
+        print(self.second_derivatives)
 
 
 

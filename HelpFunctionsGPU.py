@@ -1,12 +1,12 @@
 import numpy as np
-from multiprocessing import Pool
+
 import HelpFunctions as hp
 import tensorflow as tf
 
 def calculate(layers_second_derivative, weights_array, convergence_time_step):
     thread_list = []
     for layers in range(0, len(weights_array)):
-        layers_second_derivative = second_order(weights_array,convergence_time_step,layers)
+        layers_second_derivative[layers,:] = second_order(weights_array,convergence_time_step,layers)
 
 
 

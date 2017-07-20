@@ -31,19 +31,12 @@ def main():
     loss_his_epoch = MyCallbacks.LossHistoryEpoch()
     val_loss_his = MyCallbacks.ValLossHistory()
     loss_his = MyCallbacks.ValLossHistory()
+    all_measurements = MyCallbacks.LayersEmbeddingAllMeasurementsThreaded(epochs, 299, batch_size)
 
     model.fit(X, Y, epochs=epochs, batch_size=batch_size, validation_data=(x_test, y_test),
-              callbacks=[acc_his, val_loss_his,loss_his_epoch,  loss_his], shuffle=True)
-    f = [4, 3, 2, 1, 0]
-    g = f[0:4]
-    h = f[1:5]
+              callbacks=[acc_his, val_loss_his,loss_his_epoch,  loss_his, all_measurements], shuffle=True)
 
-    k = tf.subtract(g, h) + tf.subtract(h, g)
-    ses = tf.Session()
-    print(ses.run(k))
     print(hp.overfitting_all_values(loss_his_epoch.losses, val_loss_his.losses, hp.convergence_of_NN_val_loss(loss_his.losses, 4)))
-    print(len(model.layers))
-
     print(hp.convergence_of_NN_val_loss(loss_his.losses, 4))
 
     plt.plot(acc_his.losses, 'b-', acc_his.losses_val, 'r-')

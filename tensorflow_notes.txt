@@ -1,0 +1,5 @@
+tf.diag return diagonalised vector
+tf.substract 1st - 2nd tensor
+tf.reduce_sum(x, [0, 1]) ==> 6
+tf.square
+tf.shape

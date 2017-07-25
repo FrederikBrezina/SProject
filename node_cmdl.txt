@@ -1,0 +1,8 @@
+qsub -I -q gpu -l walltime=48:00:00
+export CUDA_VISIBLE_DEVICES=`cat /tmp/$PBS_JOBID/gpu`
+export PATH=/export/home/2287881b/anaconda2/bin:$PATH
+export http_proxy=wwwcache.gla.ac.uk:8080
+export https_proxy=$http_proxy
+
+headnode03.cent.gla.ac.uk
+export TF_BINARY_URL=https://storage.googleapis.com/tensorflow/linux/gpu/tensorflow_gpu-1.2.1-cp27-none-linux_x86_64.whl

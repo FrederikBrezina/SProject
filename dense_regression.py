@@ -45,7 +45,7 @@ def loss_nn_dense(args):
 
     acc_his = MyCallbacks.AccHistoryEpochTest()
 
-    model.fit(x, y, epochs=1, batch_size=16, validation_data=(x_test, y_test),
+    model.fit(x, y, epochs=200, batch_size=16, validation_data=(x_test, y_test),
               callbacks=[acc_his], shuffle=True)
 
     return min(acc_his.losses_val_losses)
@@ -55,4 +55,4 @@ for i in range(0,5):
     bounds[i*2,1] = 100
     bounds[i * 2 + 1, 0] = 0
     bounds[i * 2 + 1, 1] = 1
-print(bayes_var.bayesian_optimisation(2,10,loss_nn_dense, bounds))
+print(bayes_var.bayesian_optimisation(2,10,loss_nn_dense, bounds, n_pre_samples=5))

@@ -189,6 +189,7 @@ def return_smoothed_data_with_average_std_given(tensor_to_calc, avg = 0, std = 1
         std_act += (element - average)**2
     std_act /= total_num_of_points - 1
     std_act = std_act**0.5
+
     #Adjust each element
     for element in np.nditer(return_tensor , op_flags=['readwrite']):
         element[...] = element - average

@@ -1,10 +1,12 @@
 import numpy as np
-np.random.seed(7)
+
 from keras.models import Model
 from keras.layers import Input, Dense
 import MyCallbacks
 import random
 import HelpFunctions as hp
+from keras.backend.tensorflow_backend import set_session
+import tensorflow as tf
 
 
 data = np.zeros((350,12))
@@ -17,8 +19,8 @@ for points in range(0,1):
     dataset = np.loadtxt("new_training_for_simple_reg.txt", delimiter=" ")
     X = dataset[0:data_points, 0:2]
     Y = dataset[0:data_points, 2:5]
-    x_test = dataset[-10000:-1, 0:2]
-    y_test = dataset[-10000:-1, 2:5]
+    x_test = dataset[-501:-1, 0:2]
+    y_test = dataset[-501:-1, 2:5]
 
     # Types of layers used
     c = ['relu', 'tanh', 'sigmoid']
@@ -41,7 +43,13 @@ for points in range(0,1):
         #data to monitor
         conv_epoch, max_acc, max_val_acc, diff_of_over_fitting_at_conv, min_val_loss = [], [], [], [], []
         for tries in range(0,4):
+
+            config = tf.ConfigProto()
+            config.gpu_options.per_process_gpu_memory_fraction = 0.3
+            config.gpu_options.allow_growth = True
+            set_session(tf.InteractiveSession(config=config))
             input = Input(shape=(2,))
+
             layers = Dense(int(layers_val[0][0]), activation=c[int(layers_val[0][1])])
             layers2 = layers(input)
             for layer in range(1, 3):
@@ -64,6 +72,7 @@ for points in range(0,1):
             max_acc.append(max(acc_his.losses))
             max_val_acc.append(max(acc_his.losses_val))
             min_val_loss.append(min(acc_his.losses_val_losses))
+            tf.reset_default_graph()
         data[line][0] =int(hash_str, base=2)
         data[line][1], data[line][2] = hp.mean_and_std(max_acc)
         data[line][3], data[line][4] =   hp.mean_and_std(max_val_acc)

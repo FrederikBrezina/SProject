@@ -172,7 +172,7 @@ class LayersEmbeddingAllMeasurementsThreaded(Callback):
         convergence_time_step = (hp.convergence_of_NN_val_loss(self.losses_val,4) * self.number_of_batches_per_epoch) - 1
         #Calculating the data
         hpgpu.calculate(self.second_derivatives, self.list , convergence_time_step)
-        print(self.second_derivatives)
+
 
 
 

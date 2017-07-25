@@ -12,21 +12,28 @@ def calculate(layers_second_derivative, weights_array, convergence_time_step):
 
 def second_order (weights_array,convergence_time_step,layer_index):
 
-    a = tf.constant(weights_array[layer_index][0:-2,:,:])
-    b = tf.constant(weights_array[layer_index][1:-1,:,:])
-    s = tf.subtract(b,a)
-    s = tf.subtract(s[1:-1,:,:],s[0:-2,:,:])
-    results = [0, 0 ,0 ,0]
+    g = tf.Graph()
+    with g.as_default():
+        a = tf.placeholder(tf.float64, shape=weights_array[layer_index][0:-2,:,:].shape)
+        b = tf.placeholder(tf.float64, shape=weights_array[layer_index][1:-1,:,:].shape)
 
-    square = tf.square(s)
-    results[0] = tf.reduce_sum(square[0:convergence_time_step-1,:,:])
-    results[1] = tf.reduce_sum(square[convergence_time_step-1:-1,:,:])
+        s = tf.subtract(b,a)
+        s = tf.subtract(s[1:-1,:,:],s[0:-2,:,:])
+        results = [0, 0 ,0 ,0]
 
-    cubic = tf.multiply(s,s)
-    cubic = tf.multiply(s, cubic)
-    results[2] = tf.reduce_sum(cubic[0:convergence_time_step-1,:,:])
-    results[3] = tf.reduce_sum(cubic[convergence_time_step-1:-1,:,:])
-    ses = tf.Session()
-    results = ses.run(results)
+        square = tf.square(s)
+        results[0] = tf.reduce_sum(square[0:convergence_time_step-1,:,:])
+        results[1] = tf.reduce_sum(square[convergence_time_step-1:-1,:,:])
+
+        cubic = tf.multiply(s,s)
+        cubic = tf.multiply(s, cubic)
+        results[2] = tf.reduce_sum(cubic[0:convergence_time_step-1,:,:])
+        results[3] = tf.reduce_sum(cubic[convergence_time_step-1:-1,:,:])
+
+    gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.333)
+    config = tf.ConfigProto(gpu_options = gpu_options)
+    config.gpu_options.allow_growth = True
+    with tf.Session(config=config, graph=g) as ses:
+        results = ses.run(results, feed_dict={a: weights_array[layer_index][0:-2,:,:], b: weights_array[layer_index][1:-1,:,:]})
 
     return results

@@ -16,8 +16,8 @@ for points in range(0,1):
     dataset = np.loadtxt("new_training_for_simple_reg.txt", delimiter=" ")
     X = dataset[0:data_points, 0:2]
     Y = dataset[0:data_points, 2:5]
-    x_test = dataset[-10000:-1, 0:2]
-    y_test = dataset[-10000:-1, 2:5]
+    x_test = dataset[-501:-1, 0:2]
+    y_test = dataset[-501:-1, 2:5]
     Y_list, Y_test = [], []
     for tr in range(0,std_tries):
         Y_list.append(Y)

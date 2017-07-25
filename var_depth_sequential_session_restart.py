@@ -29,9 +29,9 @@ for points in range(0,1):
     for nn in range(0,600):
         hash_str = ''
         layers_val = np.zeros((10,2))
-        depth = random.randint(1, 10)
+        depth = random.randint(2, 10)
         for layer in range(0, depth):
-            layers_val[layer][0] = int(100 * random.uniform(0, 1))
+            layers_val[layer][0] = int(98 * random.uniform(0, 1)) + 2
             hash_str += get_bin(int(layers_val[layer][0]), 7)
             layers_val[layer][1] = random.randint(0, 1)
 
@@ -48,23 +48,16 @@ for points in range(0,1):
             config.gpu_options.allow_growth = True
             ses = tf.InteractiveSession(config=config)
             set_session(ses)
+            model = Sequential()
 
-            flag = True
-            while flag:
-                try:
-                    model = Sequential()
+            for layer in range(0, depth):
+                if layer == 0:
+                    model.add(Dense(int(layers_val[layer][0]), activation=c[int(layers_val[layer][1])],
+                                    input_shape=(2,)))
+                else:
+                    model.add(Dense(int(layers_val[layer][0]), activation=c[int(layers_val[layer][1])]))
 
-                    for layer in range(0, 3):
-                        if layer == 0:
-                            model.add(Dense(int(layers_val[layer][0]), activation=c[int(layers_val[layer][1])],
-                                            input_shape=(2,)))
-                        else:
-                            model.add(Dense(int(layers_val[layer][0]), activation=c[int(layers_val[layer][1])]))
-
-                    model.add(Dense(num_of_ouputs, activation='sigmoid'))
-                    flag = False
-                except AssertionError:
-                    print 'assertion error'
+            model.add(Dense(num_of_ouputs, activation='sigmoid'))
 
 
 

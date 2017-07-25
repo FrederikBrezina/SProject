@@ -75,22 +75,23 @@ def sample_next_hyperparameter(acquisition_func, gaussian_process, evaluated_los
     """
     best_x = None
     best_acquisition_value = 1
-    n_params = bounds.shape[0]
+    boundsshape = bounds.shape[0]
+
     count = 0
-    for starting_point in np.random.uniform(bounds[:, 0], bounds[:, 1], size=(n_restarts, n_params)):
+    for starting_point in np.random.uniform(bounds[:boundsshape, 0], bounds[:boundsshape, 1], size=(n_restarts,boundsshape)):
 
         res = minimize(fun=acquisition_func,
                        x0=starting_point.reshape(1, -1),
                        bounds=bounds,
                        method='L-BFGS-B',
-                       args=(gaussian_process, evaluated_loss, greater_is_better, n_params))
+                       args=(gaussian_process, evaluated_loss, greater_is_better, boundsshape))
         if count==0:
             best_acquisition_value = res.fun
+            best_x = res.x
 
         elif res.fun < best_acquisition_value:
             best_acquisition_value = res.fun
             best_x = res.x
-
         count+=1
     return best_x, best_acquisition_value
 
@@ -129,24 +130,32 @@ def bayesian_optimisation(min_depth, n_iters, sample_loss, bounds, x0=None, n_pr
     y_list = []
     models = []
     n_params = bounds.shape[0]
-    for depth in range(0, n_params):
+    max_depth = int(bounds.shape[0]/2)
+    for depth in range(0, (max_depth - min_depth)*2):
         x_list.append([])
         y_list.append([])
 
 
-    for depth in range(0, n_params):
+    for depth in range(0, max_depth - min_depth):
+        act_depth = depth*2 + min_depth*2
         if x0 is None:
-            for params in np.random.uniform(bounds[:, 0], bounds[:, 1], (n_pre_samples, depth + min_depth)):
-                x_list[depth].append(params)
-                y_list[depth].append(sample_loss(params))
+            for params in np.random.uniform(bounds[:act_depth, 0], bounds[:act_depth, 1], size=(n_pre_samples, act_depth)):
+                # Handle data where discrete needs to be
+                params2 = params
+                for i in range(0, len(params)):
+                    params2[i] = round(params[i])
+                x_list[depth].append(params2)
+                # print(x_list[depth])
+                y_list[depth].append(sample_loss(params2))
         else:
             for params in x0[depth]:
                 x_list[depth].append(params)
                 y_list[depth].append(sample_loss(params))
 
-        xp = np.array(x_list[-1])
-        yp = np.array(y_list[-1])
+        xp = np.array(x_list[depth])
+        yp = np.array(y_list[depth])
         xp_list.append(xp)
+
 
 
         # Create the GP
@@ -158,27 +167,34 @@ def bayesian_optimisation(min_depth, n_iters, sample_loss, bounds, x0=None, n_pr
                                                 alpha=alpha,
                                                 n_restarts_optimizer=10,
                                                     normalize_y=True))
-            models[-1].fit(xp, yp)
-    next_sample_list, loss_list = [], []
+        models[-1].fit(xp, yp)
+
 
     for n in range(n_iters):
-        for depth in range(0,n_params):
+        next_sample_list, loss_list = [], []
+        for depth in range(0,max_depth - min_depth):
+            act_depth = (depth + min_depth)*2
             # Sample next hyperparameter
             if random_search:
-                x_random = np.random.uniform(bounds[:, 0], bounds[:, 1], size=(depth + min_depth))
+                x_random = np.random.uniform(bounds[:act_depth, 0], bounds[:act_depth, 1], size=act_depth)
                 ei = -1 * expected_improvement(x_random, models[depth], np.array(y_list[depth]), greater_is_better=True, n_params=n_params)
                 next_sample = x_random[np.argmax(ei), :]
             else:
-                next_sample, loss = sample_next_hyperparameter(expected_improvement, models[depth], np.array(y_list[depth]), greater_is_better=True, bounds=bounds, n_restarts=100)
+                next_sample, loss = sample_next_hyperparameter(expected_improvement, models[depth], np.array(y_list[depth]), greater_is_better=True, bounds=bounds[:act_depth,:], n_restarts=100)
                 loss_list.append(loss)
+
+            # Handle data where discrete needs to be
+
+            for param in range(0, len(next_sample)):
+                next_sample[param] = round(next_sample[param])
 
             # Duplicates will break the GP. In case of a duplicate, we will randomly sample a next query point.
             if np.any(np.abs(next_sample - xp_list[depth]) <= epsilon):
-                next_sample = np.random.uniform(bounds[:, 0], bounds[:, 1], depth + min_depth)
+                next_sample = np.random.uniform(bounds[:act_depth, 0], bounds[:act_depth, 1], act_depth)
 
-            #Handle data where discrete needs to be
-            for param in range(0, n_params):
+            for param in range(0, len(next_sample)):
                 next_sample[param] = round(next_sample[param])
+
             next_sample_list.append(next_sample)
 
 

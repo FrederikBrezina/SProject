@@ -1,8 +1,14 @@
 import numpy as np
 import pprint, pickle
-data = np.ones((3,3))
-data[0] = 0
-data1 = np.zeros((3,1))
-data1[0] = 1
-print(np.any(np.abs(data1 - data) <= 0.9))
+
+x_list = []
+xp_list = []
+y_list = []
+models = []
+n_params = 5
+for depth in range(0, n_params):
+        x_list.append([])
+        y_list.append([])
+x_list[3].append(3)
+print(x_list[3])
 

@@ -31,7 +31,7 @@ for points in range(0,1):
         hash_str = ''
         layers_val = np.zeros((3,2))
         for layer in range(0, 3):
-            layers_val[layer][0] = int(100 * random.uniform(0, 1))
+            layers_val[layer][0] = int(98 * random.uniform(0, 1)) + 2
             hash_str += get_bin(int(layers_val[layer][0]), 7)
             layers_val[layer][1] = random.randint(0, 1)
 
@@ -44,46 +44,39 @@ for points in range(0,1):
         #data to monitor
         conv_epoch, max_acc, max_val_acc, diff_of_over_fitting_at_conv, min_val_loss = [], [], [], [], []
         for tries in range(0,4):
-            check = 0
-            flag = True
-            while flag:
-                try:
-                    config = tf.ConfigProto()
-                    config.gpu_options.per_process_gpu_memory_fraction = 0.3
-                    config.gpu_options.allow_growth = True
-                    ses = tf.InteractiveSession(config=config)
-                    set_session(ses)
-                    model = Sequential()
 
-                    for layer in range(0, 3):
-                        if layer ==0:
-                            model.add(Dense(int(layers_val[layer][0]), activation=c[int(layers_val[layer][1])], input_shape = (2,)))
-                        else:
-                            model.add(Dense(int(layers_val[layer][0]), activation=c[int(layers_val[layer][1])]))
+            config = tf.ConfigProto()
+            config.gpu_options.per_process_gpu_memory_fraction = 0.3
+            config.gpu_options.allow_growth = True
+            ses = tf.InteractiveSession(config=config)
+            set_session(ses)
+            model = Sequential()
+
+            for layer in range(0, 3):
+                if layer ==0:
+                    model.add(Dense(int(layers_val[layer][0]), activation=c[int(layers_val[layer][1])], input_shape = (2,)))
+                else:
+                    model.add(Dense(int(layers_val[layer][0]), activation=c[int(layers_val[layer][1])]))
 
 
-                    model.add(Dense(num_of_ouputs, activation='sigmoid'))
-                    model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
+            model.add(Dense(num_of_ouputs, activation='sigmoid'))
+            model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
 
-                    acc_his = MyCallbacks.AccHistoryEpochTest()
+            acc_his = MyCallbacks.AccHistoryEpochTest()
 
-                    model.fit(X, Y, epochs=200, batch_size=16, validation_data=(x_test, y_test),
-                              callbacks=[acc_his], shuffle=True)
-                    # Data Calculation
-                    conv_epoch.append(hp.convergence_of_NN_val_loss(acc_his.losses_val_losses, 4))
-                    diff_of_over_fitting_at_conv.append(
-                        acc_his.losses[conv_epoch[-1] - 1] - acc_his.losses[conv_epoch[-1] - 1])
-                    max_acc.append(max(acc_his.losses))
-                    max_val_acc.append(max(acc_his.losses_val))
-                    min_val_loss.append(min(acc_his.losses_val_losses))
-                    ses.close()
-                    tf.reset_default_graph()
-                    flag = False
-                except AssertionError:
-                    check+=1
-                    if check>1:
-                        print (check, tries)
-                        sys.exit()
+            model.fit(X, Y, epochs=200, batch_size=16, validation_data=(x_test, y_test),
+                      callbacks=[acc_his], shuffle=True)
+            # Data Calculation
+            conv_epoch.append(hp.convergence_of_NN_val_loss(acc_his.losses_val_losses, 4))
+            diff_of_over_fitting_at_conv.append(
+                acc_his.losses[conv_epoch[-1] - 1] - acc_his.losses[conv_epoch[-1] - 1])
+            max_acc.append(max(acc_his.losses))
+            max_val_acc.append(max(acc_his.losses_val))
+            min_val_loss.append(min(acc_his.losses_val_losses))
+            ses.close()
+            tf.reset_default_graph()
+
+
 
 
 

@@ -214,4 +214,4 @@ def bayesian_optimisation(min_depth, n_iters, sample_loss, bounds, x0=None, n_pr
         models[depth_to_search_through].fit(xp, yp)
 
 
-    return xp, yp
+    return xp, yp, y_list

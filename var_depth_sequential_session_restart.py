@@ -69,7 +69,7 @@ for points in range(0,1):
                       callbacks=[acc_his], shuffle=True)
             #Data Calculation
             conv_epoch.append(hp.convergence_of_NN_val_loss(acc_his.losses_val_losses,4))
-            diff_of_over_fitting_at_conv.append(acc_his.losses[conv_epoch[-1]-1] - acc_his.losses[conv_epoch[-1]-1])
+            diff_of_over_fitting_at_conv.append(acc_his.losses[conv_epoch[-1]-1] - acc_his.losses_val[conv_epoch[-1]-1])
             max_acc.append(max(acc_his.losses))
             max_val_acc.append(max(acc_his.losses_val))
             min_val_loss.append(min(acc_his.losses_val_losses))

@@ -1,5 +1,5 @@
 from keras.models import Model
-from keras.layers import Input, Dense, LSTM, RepeatVector
+from keras.layers import Input, Dense, LSTM, RepeatVector, Flatten
 import MyCallbacks
 from keras import regularizers
 import HelpFunctions as hp
@@ -32,14 +32,47 @@ X, Y = shuffle(X, Y)
 
 x,x_test, y, y_test = X[0:-20,:,:],X[-20:-1,:,:],Y[0:-20,:],Y[-20:-1,:]
 
-input = Input(shape=(3,9), name="main_input")
-layer = LSTM(9, kernel_regularizer=regularizers.l2(0.01), dropout=0.2, return_sequences=True)(input)
-output1 = LSTM(9,  kernel_regularizer=regularizers.l2(0.01), dropout=0.2, return_sequences=True, name='lstm_output')(layer)
-layer = Dense(32, activation='relu', kernel_regularizer=regularizers.l2(0.01))(layer)
-layer = Dense(32, activation='tanh', kernel_regularizer=regularizers.l2(0.01))(layer)
-output2 = Dense(6, activation='linear', name='main_output')(layer)
-model = Model(inputs=[input], outputs=[output1, output2])
-model.compile(loss='mse', optimizer='adam', metrics=[])
-model.fit([x],[x,y], epochs=500, batch_size=1, validation_data=[])
-plt.plot(model.predict(x_test)[:,0], 'b-', y_test[:,0], 'r-')
-plt.show()
+def base_model(input):
+    layer = LSTM(9, kernel_regularizer=regularizers.l2(0.01), dropout=0.2, return_sequences=False)(input)
+    model = Model(inputs=input, outputs=layer)
+    model.compile(loss='mse', optimizer='adam', metrics=[])
+    return model, layer
+def model_for_decoder(input, base):
+    x = base(input)
+    layer = RepeatVector(3)(x) # Get the last output of the GRU and repeats it
+    output1 = LSTM(9,  kernel_regularizer=regularizers.l2(0.01), dropout=0.2, return_sequences=True, name='lstm_output')(layer)
+    model = Model(inputs=input,outputs=output1)
+    model.compile(loss='mse', optimizer='adam', metrics=[])
+    return model, output1
+def model_for_for_values(input, base):
+    x = base(input)
+    layer = Dense(32, activation='relu', kernel_regularizer=regularizers.l2(0.01))(x)
+    layer = Dense(32, activation='tanh', kernel_regularizer=regularizers.l2(0.01))(layer)
+    output2 = Dense(6, activation='linear', name='main_output')(layer)
+    model = Model(inputs=[input], outputs=[output2])
+    model.compile(loss='mse', optimizer='adam', metrics=[])
+    return model, output2
+def set_trainable(model, trainable=False):
+    model.trainable = trainable
+    for layer in model.layers:
+        layer.trainable = trainable
+
+##First partial model
+input = Input(shape=(3,9))
+base_m, base_m_out = base_model(input)
+
+##Two full models
+input = Input(shape=(3,9))
+model_for_decode, model_for_decode_out = model_for_decoder(input, base_m)
+input = Input(shape=(3,9))
+model_to_eval, model_to_eval_out = model_for_for_values(input, base_m)
+
+###First fit model_to_predict
+model_to_eval.fit(x,y, epochs=20, batch_size=10)
+
+#Secondly the encoder
+set_trainable(base_m, False)
+model_for_decode.fit(x,x, epochs=20, batch_size=10)
+
+print(np.round(model_for_decode.predict(x_test)) - np.round(x_test))
+

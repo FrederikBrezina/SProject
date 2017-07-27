@@ -6,9 +6,11 @@ import random
 import HelpFunctions as hp
 from keras.backend.tensorflow_backend import set_session
 import tensorflow as tf
+import pickle
 
 
-data = np.zeros((700,12))
+data = np.zeros((1000,9))
+hash_str_list = []
 data_p = [500, 3000]
 line = 0
 dic = {}
@@ -65,7 +67,7 @@ for points in range(0,1):
 
             acc_his = MyCallbacks.AccHistoryEpochTest()
 
-            model.fit(X, Y, epochs=200, batch_size=20, validation_data=(x_test, y_test),
+            model.fit(X, Y, epochs=200, batch_size=16, validation_data=(x_test, y_test),
                       callbacks=[acc_his], shuffle=True)
             #Data Calculation
             conv_epoch.append(hp.convergence_of_NN_val_loss(acc_his.losses_val_losses,4))
@@ -75,12 +77,14 @@ for points in range(0,1):
             min_val_loss.append(min(acc_his.losses_val_losses))
             ses.close()
             tf.reset_default_graph()
-        data[line][0] =int(hash_str, base=2)
-        data[line][1], data[line][2] = hp.mean_and_std(max_acc)
-        data[line][3], data[line][4] =   hp.mean_and_std(max_val_acc)
-        data[line][5], data[line][6] = hp.mean_and_std(conv_epoch)
-        data[line][7], data[line][8] = hp.mean_and_std(diff_of_over_fitting_at_conv)
-        data[line][9], data[line][10] = hp.mean_and_std(diff_of_over_fitting_at_conv)
-        data[line][11] = depth
+        hash_str_list.append(hash_str)
+        data[line][0], data[line][1] = hp.mean_and_std(max_acc)
+        data[line][2], data[line][3] =   hp.mean_and_std(max_val_acc)
+        data[line][4], data[line][5] = hp.mean_and_std(conv_epoch)
+        data[line][6], data[line][7] = hp.mean_and_std(diff_of_over_fitting_at_conv)
+        data[line][8] = depth
         line += 1
-np.savetxt('num_of_layers_3_rand_units_rand_act_for_all.txt', data, delimiter=" ")
+np.savetxt('num_of_layers_var_rand_units_rand_act_for_ally.txt', data, delimiter=" ")
+output = open('num_of_layers_var_rand_units_rand_act_for_allx.txt', 'wb')
+pickle.dump(hash_str_list, output)
+output.close()

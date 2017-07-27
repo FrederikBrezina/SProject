@@ -29,18 +29,20 @@ for i in range(0,dataset.shape[0]):
 
 Y = dataset[:,1:7]
 X, Y = shuffle(X, Y)
-
+dimension_of_hidden_layers = 90
 x,x_test, y, y_test = X[0:-20,:,:],X[-20:-1,:,:],Y[0:-20,:],Y[-20:-1,:]
 
 def base_model(input):
-    layer = LSTM(9, kernel_regularizer=regularizers.l2(0.01), dropout=0.2, return_sequences=False)(input)
+    layer = TimeDistributed(Dense(dimension_of_hidden_layers))(input)
+    layer = LSTM(dimension_of_hidden_layers, kernel_regularizer=regularizers.l2(0.01), dropout=0.2, return_sequences=False)(layer)
     model = Model(inputs=input, outputs=layer)
     model.compile(loss='mse', optimizer='adam', metrics=[])
     return model, layer
 def model_for_decoder(input, base):
     x = base(input)
     layer = RepeatVector(3)(x) # Get the last output of the GRU and repeats it
-    output1 = LSTM(9,  kernel_regularizer=regularizers.l2(0.01), dropout=0.2, return_sequences=True, name='lstm_output')(layer)
+    output1 = LSTM(dimension_of_hidden_layers,  kernel_regularizer=regularizers.l2(0.01), dropout=0.2, return_sequences=True, name='lstm_output')(layer)
+    output1 = TimeDistributed(Dense(9))(output1)
     model = Model(inputs=input,outputs=output1)
     model.compile(loss='mse', optimizer='adam', metrics=[])
     return model, output1
@@ -68,11 +70,13 @@ input = Input(shape=(3,9))
 model_to_eval, model_to_eval_out = model_for_for_values(input, base_m)
 
 ###First fit model_to_predict
-model_to_eval.fit(x,y, epochs=20, batch_size=10)
+model_to_eval.fit(x,y, epochs=300, batch_size=5)
 
 #Secondly the encoder
 set_trainable(base_m, False)
-model_for_decode.fit(x,x, epochs=20, batch_size=10)
-
-print(np.round(model_for_decode.predict(x_test)) - np.round(x_test))
+model_for_decode.fit(x,x, epochs=600, batch_size=1)
+f = np.round(model_for_decode.predict(x_test))
+print(f - np.round(x_test))
+print(model_to_eval.predict(f))
+print(y_test)
 

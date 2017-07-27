@@ -40,14 +40,14 @@ def loss_nn_dense(args):
             model.add(Dense(int(args[layer*2]), activation=c[int(args[layer*2 + 1])], input_shape = (2,)))
         else:
             model.add(Dense(int(args[layer*2]), activation=c[int(args[layer*2 + 1])]))
-    model.add(Dense(3, activation='tanh'))
+    model.add(Dense(3, activation='sigmoid'))
     model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
 
     acc_his = MyCallbacks.AccHistoryEpochTest()
 
-    model.fit(x, y, epochs=200, batch_size=16, validation_data=(x_test, y_test),
+    model.fit(x, y, epochs=200, batch_size=20, validation_data=(x_test, y_test),
               callbacks=[acc_his], shuffle=True)
-
+    print('depth: ', depth, 'loss_val: ', min(acc_his.losses_val_losses), 'loss_acc: ', max(acc_his.losses_val))
     return min(acc_his.losses_val_losses)
 bounds = np.zeros((10,2))
 for i in range(0,5):
@@ -55,4 +55,16 @@ for i in range(0,5):
     bounds[i*2,1] = 100
     bounds[i * 2 + 1, 0] = 0
     bounds[i * 2 + 1, 1] = 1
-print(bayes_var.bayesian_optimisation(2,10,loss_nn_dense, bounds, n_pre_samples=5))
+k,j,z = bayes_var.bayesian_optimisation(2,300,loss_nn_dense, bounds, n_pre_samples=5)
+print("k")
+print('%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%')
+print(k)
+print("j")
+print('%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%')
+print(j)
+for i in range(0, len(z)):
+    if len(z[i])<1:
+        continue
+    print("z",i)
+    print('%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%')
+    print(z[i][-1])

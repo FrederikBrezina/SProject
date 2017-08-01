@@ -96,7 +96,7 @@ def sample_next_hyperparameter(acquisition_func, gaussian_process, evaluated_los
     return best_x, best_acquisition_value
 
 
-def bayesian_optimisation(min_depth, n_iters, sample_loss, bounds, x0=None, n_pre_samples=5,
+def bayesian_optimisation(x, y, x_test, y_test, loss_fce, optimizer, min_depth, max_depth, n_iters, sample_loss, bounds, act_fce, output, x0=None, n_pre_samples=5,
                           gp_params=None, random_search=False, alpha=1e-5, epsilon=1e-7):
     """ bayesian_optimisation
 
@@ -129,34 +129,29 @@ def bayesian_optimisation(min_depth, n_iters, sample_loss, bounds, x0=None, n_pr
     xp_list = []
     y_list = []
     models = []
+    xp, yp = None, None
     n_params = bounds.shape[0]
-    max_depth = int(bounds.shape[0]/2)
-    for depth in range(0, (max_depth - min_depth)*2):
+    n_params_per_layer = len(act_fce) + 1
+    max_depth = int(max_depth)
+    for depth in range(0, (max_depth - min_depth)):
         x_list.append([])
         y_list.append([])
 
 
-    for depth in range(0, max_depth - min_depth):
-        act_depth = depth*2 + min_depth*2
-        if x0 is None:
-            for params in np.random.uniform(bounds[:act_depth, 0], bounds[:act_depth, 1], size=(n_pre_samples, act_depth)):
-                # Handle data where discrete needs to be
-                params2 = params
-                for i in range(0, len(params)):
-                    params2[i] = round(params[i])
-                x_list[depth].append(params2)
-                # print(x_list[depth])
-                y_list[depth].append(sample_loss(params2))
-        else:
-            for params in x0[depth]:
-                x_list[depth].append(params)
-                y_list[depth].append(sample_loss(params))
-
+    for depth in range(0, max_depth - min_depth - 1):
+        act_depth = depth*n_params_per_layer + (min_depth - 1)*n_params_per_layer
+        for params in np.random.uniform(bounds[:act_depth, 0], bounds[:act_depth, 1], size=(n_pre_samples, act_depth)):
+            # Handle data where discrete needs to be
+            params2 = np.zeros((act_depth+len(act_fce),1))
+            params2[:act_depth] = params
+            params2[act_depth:] = np.random.uniform(bounds[-len(act_fce):, 0], bounds[-len(act_fce):, 1], size=len(act_fce))
+            params2 = serialize_next_sample_for_gp(params2, n_params_per_layer)
+            x_list[depth].append(params2)
+            # print(x_list[depth])
+            y_list[depth].append(sample_loss(seriliaze_next_sample_for_loss_fce(params2, n_params_per_layer), act_fce, x, y, x_test, y_test, loss_fce, optimizer))
         xp = np.array(x_list[depth])
         yp = np.array(y_list[depth])
         xp_list.append(xp)
-
-
 
         # Create the GP
         if gp_params is not None:
@@ -172,36 +167,28 @@ def bayesian_optimisation(min_depth, n_iters, sample_loss, bounds, x0=None, n_pr
 
     for n in range(n_iters):
         next_sample_list, loss_list = [], []
-        for depth in range(0,max_depth - min_depth):
-            act_depth = (depth + min_depth)*2
-            # Sample next hyperparameter
-            if random_search:
-                x_random = np.random.uniform(bounds[:act_depth, 0], bounds[:act_depth, 1], size=act_depth)
-                ei = -1 * expected_improvement(x_random, models[depth], np.array(y_list[depth]), greater_is_better=True, n_params=n_params)
-                next_sample = x_random[np.argmax(ei), :]
-            else:
-                next_sample, loss = sample_next_hyperparameter(expected_improvement, models[depth], np.array(y_list[depth]), greater_is_better=True, bounds=bounds[:act_depth,:], n_restarts=100)
-                loss_list.append(loss)
+        for depth in range(0,max_depth - min_depth - 1):
+            act_depth = (depth + min_depth - 1)*n_params_per_layer
+            bounds_depth = np.zeros((act_depth + len(act_fce), 1))
+            bounds_depth[:act_depth] = bounds[:act_depth]
+            bounds_depth[act_depth:] = bounds[-len(act_fce):]
+            next_sample, loss = sample_next_hyperparameter(expected_improvement, models[depth], np.array(y_list[depth]), greater_is_better=True, bounds=bounds_depth, n_restarts=100)
+            loss_list.append(loss)
 
             # Handle data where discrete needs to be
 
-            for param in range(0, len(next_sample)):
-                next_sample[param] = round(next_sample[param])
+            next_sample = serialize_next_sample_for_gp(next_sample, n_params_per_layer)
 
             # Duplicates will break the GP. In case of a duplicate, we will randomly sample a next query point.
             if np.any(np.abs(next_sample - xp_list[depth]) <= epsilon):
-                next_sample = np.random.uniform(bounds[:act_depth, 0], bounds[:act_depth, 1], act_depth)
-
-            for param in range(0, len(next_sample)):
-                next_sample[param] = round(next_sample[param])
-
+                next_sample = np.random.uniform(bounds_depth[:,0], bounds_depth[:, 1], act_depth + len(act_fce))
+                next_sample = serialize_next_sample_for_gp(next_sample, n_params_per_layer)
             next_sample_list.append(next_sample)
-
 
         depth_to_search_through = loss_list.index(min(loss_list))
         # Sample loss for new set of parameters
 
-        cv_score = sample_loss(next_sample_list[depth_to_search_through])
+        cv_score = sample_loss(seriliaze_next_sample_for_loss_fce(next_sample_list[depth_to_search_through], n_params_per_layer), act_fce, x, y, x_test, y_test, loss_fce, optimizer)
 
         # Update lists
         x_list[depth_to_search_through].append(next_sample_list[depth_to_search_through])
@@ -215,3 +202,34 @@ def bayesian_optimisation(min_depth, n_iters, sample_loss, bounds, x0=None, n_pr
 
 
     return xp, yp, y_list
+
+def seriliaze_next_sample_for_loss_fce(next_sample, number_of_parameters_per_layer):
+    seriliezed_next_sample = []
+    number_of_layers = int((next_sample.shape[0] - number_of_parameters_per_layer + 1)/number_of_parameters_per_layer)
+    for i in range(0, number_of_layers):
+        seriliezed_next_sample.append(round(next_sample[i*number_of_parameters_per_layer]))
+        seriliezed_next_sample.append(next_sample[(i*number_of_parameters_per_layer) + 1: (i+1)*number_of_parameters_per_layer].index(max(next_sample[(i*number_of_parameters_per_layer) + 1: (i+1)*number_of_parameters_per_layer])))
+    seriliezed_next_sample.append(next_sample[(number_of_layers*number_of_parameters_per_layer): (number_of_layers+1)*number_of_parameters_per_layer].index(max(next_sample[(number_of_layers*number_of_parameters_per_layer): (number_of_layers+1)*number_of_parameters_per_layer])))
+    return np.array(seriliezed_next_sample)
+
+def serialize_next_sample_for_gp(next_sample, number_of_parameters_per_layer):
+    seriliezed_next_sample = np.copy(next_sample)
+    number_of_layers = int((next_sample.shape[0] - number_of_parameters_per_layer + 1) / number_of_parameters_per_layer)
+    for i in range(0, number_of_layers):
+        seriliezed_next_sample[i * number_of_parameters_per_layer] = round(next_sample[i * number_of_parameters_per_layer])
+        index = next_sample[(i * number_of_parameters_per_layer) + 1: (i + 1) * number_of_parameters_per_layer].index(
+                max(next_sample[(i * number_of_parameters_per_layer) + 1: (i + 1) * number_of_parameters_per_layer]))
+        for fce in range(1, number_of_parameters_per_layer):
+            if index == fce:
+                seriliezed_next_sample[i * number_of_parameters_per_layer + fce] = 1
+            else:
+                seriliezed_next_sample[i * number_of_parameters_per_layer + fce] = 0
+
+    index = next_sample[(number_of_layers * number_of_parameters_per_layer): (number_of_layers + 1) * number_of_parameters_per_layer].index(
+        max(next_sample[(number_of_layers * number_of_parameters_per_layer): (number_of_layers + 1) * number_of_parameters_per_layer]))
+    for fce in range(1, number_of_parameters_per_layer):
+        if index == fce:
+            seriliezed_next_sample[number_of_layers * number_of_parameters_per_layer + fce] = 1
+        else:
+            seriliezed_next_sample[number_of_layers * number_of_parameters_per_layer + fce] = 0
+    return seriliezed_next_sample

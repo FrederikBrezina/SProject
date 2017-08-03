@@ -1,5 +1,6 @@
 from keras.models import Model
 from keras.layers import Input, Dense, LSTM, GRU, RepeatVector
+from keras.layers.normalization import BatchNormalization
 from keras import regularizers
 import numpy as np
 import pickle
@@ -52,6 +53,7 @@ dimension_of_hidden_layers = 90
 def base_model(input):
     layer = TimeDistributed(Dense(dimension_of_hidden_layers))(input)
     layer = LSTM(dimension_of_hidden_layers, kernel_regularizer=regularizers.l2(0.01), dropout=0.2, return_sequences=False)(layer)
+    layer = BatchNormalization()(layer)
     model = Model(inputs=input, outputs=layer)
     model.compile(loss='mse', optimizer='adam', metrics=[])
     return model, layer
@@ -136,13 +138,13 @@ for i in range(0,10):
 #     pretrain_on_epoch(model_for_decode,x,y,dict,1)
 #     print('####################################',model_for_decode.test_on_batch(x_test, x_test ))
 g_list = []
-for epoch in range(0,20):
+for epoch in range(0,10):
     train_on_epoch(model_to_eval, model_for_decode, x, y,dict, 1)
     g_list.append(model_for_decode.test_on_batch(x_test, x_test))
     print('####################################', g_list[-1])
 
 
-
+print(base_m.predict(x_test))
 f = np.round(model_for_decode.predict(x_test))
 f = model_to_eval.predict(f)
 for i in range(0,test_samples):

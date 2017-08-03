@@ -35,6 +35,9 @@ def find_index(ar, el):
     return 1
 
 Y = datay[:600]
+sort = np.argsort(Y[:,0], axis=0)
+Y = Y[sort][:200]
+X = X[sort][:200]
 X, Y = shuffle(X, Y)
 sort = np.argsort(Y[:,0], axis=0)
 test_samples = 2
@@ -46,16 +49,16 @@ X = X[sort]
 
 
 def base_model(input):
-    layer = Dense(dimensionality,activation='relu', kernel_regularizer=regularizers.l2(0.007))(input)
+    layer = Dense(dimensionality,activation='relu', kernel_regularizer=regularizers.l2(0.0007))(input)
     # layer = Dropout(0.05)(layer)
-    layer = Dense(80,activation='relu',kernel_regularizer=regularizers.l2(0.007) )(layer)
+    layer = Dense(80,activation='relu',kernel_regularizer=regularizers.l2(0.0007) )(layer)
     # layer = Dropout(0.05)(layer)
     model = Model(inputs=input, outputs=layer)
     model.compile(loss='mse', optimizer='nadam', metrics=[])
     return model, layer
 def model_for_decoder(input, base):
     x = base(input)
-    layer = Dense(80,activation='relu', kernel_regularizer=regularizers.l2(0.007))(x) # Get the last output of the GRU and repeats it
+    layer = Dense(80,activation='relu', kernel_regularizer=regularizers.l2(0.0007))(x) # Get the last output of the GRU and repeats it
     # layer = Dropout(0.05)(layer)
     # layer = Dense(80, activation='relu', kernel_regularizer=regularizers.l2(0.01))(layer)
     # layer = Dense(80, activation='relu', kernel_regularizer=regularizers.l2(0.01))(layer)
@@ -144,7 +147,10 @@ for epoch in range(0,50):
     print('####################################', g_list[-1])
 print(g_list)
 print(find_index(Y[:,0],y_test[0,0]))
-f = np.reshape(np.round(model_for_decode.predict(x_test)[0]), (1,90))
+f = model_for_decode.predict(x_test)
+f = np.round(f[0])
+print(f, x_test)
+f = np.reshape(f, (1,90))
 f = model_to_eval.predict(f)
 print(y_test[0],f )
 print(find_index(Y[:,0],f[0,0]))

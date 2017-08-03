@@ -11,7 +11,7 @@ def shuffle(a,b):
     perm = np.random.permutation(Y.shape[0])
     return a[perm], b[perm]
 ####load data
-pkl_file = open('num_of_layers_var_rand_units_rand_act_for_allx.txt', 'rb')
+pkl_file = open('num_of_layers_var_rand_units_rand_act_for_allx1.txt', 'rb')
 datax = pickle.load(pkl_file)
 datay = np.loadtxt("num_of_layers_var_rand_units_rand_act_for_ally.txt", delimiter=" ")
 
@@ -85,15 +85,12 @@ def train_on_epoch(model, model2, x, y, dict, batch_size = 10):
         if (futur_line)<= len_of_data:
             model_loss.append(model.train_on_batch(x[cur_line:(futur_line)], y[cur_line:(futur_line)]))
             model2_loss.append(model2.train_on_batch(x[cur_line:(futur_line)], x[cur_line:(futur_line)]))
-            model2_loss.append(
-                model2.train_on_batch(x[cur_line:futur_line], x[cur_line:futur_line]))
             cur_line = futur_line
         elif (cur_line<len_of_data):
             print('fuck')
             model_loss.append(model.train_on_batch(x[cur_line:len_of_data], y[cur_line:len_of_data]))
             model2_loss.append(model2.train_on_batch(x[cur_line:len_of_data], x[cur_line:len_of_data]))
-            model2_loss.append(
-                model2.train_on_batch(x[cur_line:len_of_data], x[cur_line:len_of_data]))
+
         print("Epoch #{}: model Loss: {}, model2 Loss: {}".format(epoch + 1, model_loss[-1], model2_loss[-1]))
 
 def pretrain_on_epoch(model2, x, y, dict, batch_size=1):
@@ -139,7 +136,7 @@ for i in range(0,10):
 #     pretrain_on_epoch(model_for_decode,x,y,dict,1)
 #     print('####################################',model_for_decode.test_on_batch(x_test, x_test ))
 g_list = []
-for epoch in range(0,1):
+for epoch in range(0,20):
     train_on_epoch(model_to_eval, model_for_decode, x, y,dict, 1)
     g_list.append(model_for_decode.test_on_batch(x_test, x_test))
     print('####################################', g_list[-1])

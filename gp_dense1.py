@@ -62,11 +62,13 @@ def train_on_epoch(model, model2, x, y, dict, batch_size = 10):
     cur_line = 0
     model_loss, model2_loss = [], []
     for i in range(0, int(len_of_data/ batch_size) + 1):
-        if (10 + cur_line)<= len_of_data:
-            model_loss.append(model.train_on_batch(x[cur_line:(cur_line + 10)], y[cur_line:(cur_line + 10)]))
-            model2_loss.append(model2.train_on_batch(x[cur_line:(cur_line + 10)], x[cur_line:(cur_line + 10)], class_weight=dict))
+        futur_line = cur_line + batch_size
+        if (futur_line)<= len_of_data:
+            model_loss.append(model.train_on_batch(x[cur_line:(futur_line)], y[cur_line:(futur_line)]))
+            model2_loss.append(model2.train_on_batch(x[cur_line:(futur_line)], x[cur_line:(futur_line)], class_weight=dict))
             model2_loss.append(
-                model2.train_on_batch(x[cur_line:(cur_line + 10)], x[cur_line:(cur_line + 10)], class_weight=dict))
+                model2.train_on_batch(x[cur_line:futur_line], x[cur_line:futur_line], class_weight=dict))
+            cur_line = futur_line
         else:
             model_loss.append(model.train_on_batch(x[cur_line:len_of_data], y[cur_line:len_of_data]))
             model2_loss.append(model2.train_on_batch(x[cur_line:len_of_data], x[cur_line:len_of_data],class_weight = dict))
@@ -79,9 +81,11 @@ def pretrain_on_epoch(model2, x, y, dict, batch_size=1):
     cur_line = 0
     model_loss, model2_loss = [], []
     for i in range(0, int(len_of_data / batch_size) + 1):
-        if (10 + cur_line) <= len_of_data:
+        futur_line = cur_line + batch_size
+        if futur_line <= len_of_data:
             model2_loss.append(
-                model2.train_on_batch(x[cur_line:(cur_line + 10)], x[cur_line:(cur_line + 10)]))
+                model2.train_on_batch(x[cur_line:futur_line], x[cur_line:futur_line]))
+            cur_line = futur_line
         else:
             model2_loss.append(
                 model2.train_on_batch(x[cur_line:len_of_data], x[cur_line:len_of_data]))

@@ -10,7 +10,7 @@ def shuffle(a,b):
     perm = np.random.permutation(Y.shape[0])
     return a[perm], b[perm]
 ####load data
-pkl_file = open('num_of_layers_var_rand_units_rand_act_for_allx.txt', 'rb')
+pkl_file = open('num_of_layers_var_rand_units_rand_act_for_allx1.txt', 'rb')
 datax = pickle.load(pkl_file)
 datay = np.loadtxt("num_of_layers_var_rand_units_rand_act_for_ally.txt", delimiter=" ")
 
@@ -133,11 +133,12 @@ for i in range(0,10):
 # for epoch in range(0,100):
 #     pretrain_on_epoch(model_for_decode,x,y,dict,1)
 #     print('####################################',model_for_decode.test_on_batch(x_test, x_test ))
-
-for epoch in range(0,20):
+g_list = []
+for epoch in range(0,30):
     train_on_epoch(model_to_eval, model_for_decode, x, y,dict, 1)
-    print('####################################', model_for_decode.test_on_batch(x_test, x_test))
-
+    g_list.append(model_for_decode.test_on_batch(x_test, x_test))
+    print('####################################', g_list[-1])
+print(g_list)
 print(find_index(Y[:,0],y_test[0,0]))
 f = np.reshape(np.round(model_for_decode.predict(x_test)[0]), (1,90))
 f = model_to_eval.predict(f)

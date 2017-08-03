@@ -2,41 +2,60 @@ from keras.models import Model
 from keras.layers import Input, Dense
 from keras import regularizers
 import numpy as np
+import pickle
 
 get_bin = lambda x, n: format(x, 'b').zfill(n)
 def shuffle(a,b):
+
     perm = np.random.permutation(Y.shape[0])
     return a[perm], b[perm]
 ####load data
-dataset = np.loadtxt("num_of_layers_3_rand_units_rand_act_for_all.txt", delimiter=" ")[0:100]
+pkl_file = open('num_of_layers_var_rand_units_rand_act_for_allx.txt', 'rb')
+datax = pickle.load(pkl_file)
+datay = np.loadtxt("num_of_layers_var_rand_units_rand_act_for_ally.txt", delimiter=" ")
+
 time_distribution_steps = 10
 number_of_bits_per_layer = 9
+number_of_data = len(datax)
 dimensionality = time_distribution_steps*number_of_bits_per_layer
-X = np.zeros((dataset.shape[0], time_distribution_steps*number_of_bits_per_layer))
-for i in range(0,dataset.shape[0]):
-    bit = get_bin(int(dataset[i,0]), time_distribution_steps*number_of_bits_per_layer)
-    bit_count = 0
+X = np.zeros((number_of_data, time_distribution_steps*number_of_bits_per_layer))
+
+for i in range(0,number_of_data):
+    bit = get_bin(int(datax[i], base=2), time_distribution_steps*number_of_bits_per_layer)
     for steps in range(0, time_distribution_steps*number_of_bits_per_layer):
         X[i, steps] = int(bit[steps])
-        bit_count += 1
 
 
-Y = dataset[:,1:7]
+
+def find_index(ar, el):
+    for i in range(0,number_of_data - 1):
+
+        if el<ar[i]:
+            return (i/number_of_data)
+    return 1
+
+Y = datay[:600]
 X, Y = shuffle(X, Y)
+sort = np.argsort(Y[:,0], axis=0)
 test_samples = 2
 x,x_test, y, y_test = X[0:-test_samples,:],X[-test_samples:-1,:],Y[0:-test_samples,:],Y[-test_samples:-1,:]
+Y = Y[sort]
+X = X[sort]
+
+
+
 
 def base_model(input):
-    layer = Dense(dimensionality,activation='relu', kernel_regularizer=regularizers.l2(0.001))(input)
+    layer = Dense(dimensionality,activation='relu', kernel_regularizer=regularizers.l2(0.007))(input)
     # layer = Dropout(0.05)(layer)
-    layer = Dense(80,activation='relu',kernel_regularizer=regularizers.l2(0.001) )(layer)
+    layer = Dense(80,activation='relu',kernel_regularizer=regularizers.l2(0.007) )(layer)
     # layer = Dropout(0.05)(layer)
     model = Model(inputs=input, outputs=layer)
     model.compile(loss='mse', optimizer='nadam', metrics=[])
     return model, layer
 def model_for_decoder(input, base):
     x = base(input)
-    layer = Dense(80,activation='relu', kernel_regularizer=regularizers.l2(0.001))(x) # Get the last output of the GRU and repeats it
+    layer = Dense(80,activation='relu', kernel_regularizer=regularizers.l2(0.007))(x) # Get the last output of the GRU and repeats it
     # layer = Dropout(0.05)(layer)
     # layer = Dense(80, activation='relu', kernel_regularizer=regularizers.l2(0.01))(layer)
     # layer = Dense(80, activation='relu', kernel_regularizer=regularizers.l2(0.01))(layer)
@@ -46,9 +65,9 @@ def model_for_decoder(input, base):
     return model, output1
 def model_for_for_values(input, base):
     x = base(input)
-    layer = Dense(32, activation='relu', kernel_regularizer=regularizers.l2(0.001))(x)
-    layer = Dense(32, activation='tanh', kernel_regularizer=regularizers.l2(0.001))(layer)
-    output2 = Dense(6, activation='linear', name='main_output')(layer)
+    layer = Dense(32, activation='relu', kernel_regularizer=regularizers.l2(0.01))(x)
+    layer = Dense(32, activation='tanh', kernel_regularizer=regularizers.l2(0.01))(layer)
+    output2 = Dense(9, activation='linear', name='main_output')(layer)
     model = Model(inputs=[input], outputs=[output2])
     model.compile(loss='mse', optimizer='nadam', metrics=[])
     return model, output2
@@ -115,9 +134,13 @@ for i in range(0,10):
 #     pretrain_on_epoch(model_for_decode,x,y,dict,1)
 #     print('####################################',model_for_decode.test_on_batch(x_test, x_test ))
 
-for epoch in range(0,150):
+for epoch in range(0,20):
     train_on_epoch(model_to_eval, model_for_decode, x, y,dict, 1)
     print('####################################', model_for_decode.test_on_batch(x_test, x_test))
 
-print(np.round(model_for_decode.predict(x_test)) - np.round(x_test))
-print(x_test)
+print(find_index(Y[:,0],y_test[0,0]))
+f = np.reshape(np.round(model_for_decode.predict(x_test)[0]), (1,90))
+f = model_to_eval.predict(f)
+print(y_test[0],f )
+print(find_index(Y[:,0],f[0,0]))
+

@@ -7,7 +7,9 @@ def call_core(loss_fce,optimizer,min_depth, max_depth,min_units, max_units, act_
     ###Load dataset
     datax, datay = np.loadtxt(datasetx, delimiter=" "), np.loadtxt(datasety, delimiter=" ")
     x, x_test = datax[:(-1-number_of_test_examples)], datax[(-1-number_of_test_examples):-1]
+    x = x[:300]
     y, y_test = datay[:(-1 - number_of_test_examples)], datay[(-1 - number_of_test_examples):-1]
+    y = y[:300]
     number_of_act_fce = len(act_functions_to_use)
     bounds = np.zeros((int((max_depth-1)*(number_of_act_fce+1) + number_of_act_fce),2))
 
@@ -96,7 +98,8 @@ def command_line_interface():
     return act_fce, optimizer, loss, min_depth, max_depth, min_units, max_units, n_iter, n_presamples, datasetx, datasety, test_number, output
 
 if __name__ == "__main__":
-    act_fce, optimizer, loss, min_depth, max_depth, min_units, max_units, n_iter, n_presamples, datasetx, datasety, test_number, output = command_line_interface()
+    # act_fce, optimizer, loss, min_depth, max_depth, min_units, max_units, n_iter, n_presamples, datasetx, datasety, test_number, output = command_line_interface()
+    loss, optimizer, min_depth, max_depth, min_units, max_units, act_fce, n_iter, n_presamples, datasetx, datasety, test_number, output = 'categorical_crossentropy', 'adam', 2,10,2,100, ['softmax', 'elu',  'softplus', 'softsign', 'relu', 'tanh', 'sigmoid', 'hard_sigmoid','linear'] , 10,2,'X.txt', 'Y.txt', 10,'c.txt'
     call_core(loss, optimizer, min_depth, max_depth, min_units, max_units, act_fce, n_iter, n_presamples, datasetx, datasety, test_number, output)
 
 

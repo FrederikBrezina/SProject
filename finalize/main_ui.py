@@ -31,6 +31,7 @@ def command_line_interface():
     act_fce_keras = ['softmax', 'elu', 'selu', 'softplus', 'softsign', 'relu', 'tanh', 'sigmoid', 'hard_sigmoid',
                      'linear']
     print('Do yoy want to include all these layers in search? n/y')
+    print(act_fce_keras)
     j = input()
     if j == 'n':
         print('Write down keras activations one by one, if you have no more functions tot include wirte n')

@@ -41,7 +41,7 @@ def find_index(ar, el):
 Y = datay[:600]
 X, Y = shuffle(X, Y)
 sort = np.argsort(Y[:,0], axis=0)
-test_samples = 2
+test_samples = 10
 x,x_test, y, y_test = X[0:-test_samples,:,:],X[-test_samples:-1,:,:],Y[0:-test_samples,:],Y[-test_samples:-1,:]
 Y = Y[sort]
 X = X[sort]
@@ -57,7 +57,7 @@ def base_model(input):
     return model, layer
 def model_for_decoder(input, base):
     x = base(input)
-    layer = RepeatVector(3)(x) # Get the last output of the GRU and repeats it
+    layer = RepeatVector(10)(x) # Get the last output of the GRU and repeats it
     output1 = LSTM(dimension_of_hidden_layers,  kernel_regularizer=regularizers.l2(0.01), dropout=0.2, return_sequences=True, name='lstm_output')(layer)
     output1 = TimeDistributed(Dense(9))(output1)
     model = Model(inputs=input,outputs=output1)
@@ -67,7 +67,7 @@ def model_for_for_values(input, base):
     x = base(input)
     layer = Dense(32, activation='relu', kernel_regularizer=regularizers.l2(0.01))(x)
     layer = Dense(32, activation='tanh', kernel_regularizer=regularizers.l2(0.01))(layer)
-    output2 = Dense(6, activation='linear', name='main_output')(layer)
+    output2 = Dense(9, activation='linear', name='main_output')(layer)
     model = Model(inputs=[input], outputs=[output2])
     model.compile(loss='mse', optimizer='adam', metrics=[])
     return model, output2
@@ -84,15 +84,16 @@ def train_on_epoch(model, model2, x, y, dict, batch_size = 10):
         futur_line = cur_line + batch_size
         if (futur_line)<= len_of_data:
             model_loss.append(model.train_on_batch(x[cur_line:(futur_line)], y[cur_line:(futur_line)]))
-            model2_loss.append(model2.train_on_batch(x[cur_line:(futur_line)], x[cur_line:(futur_line)], class_weight=dict))
+            model2_loss.append(model2.train_on_batch(x[cur_line:(futur_line)], x[cur_line:(futur_line)]))
             model2_loss.append(
-                model2.train_on_batch(x[cur_line:futur_line], x[cur_line:futur_line], class_weight=dict))
+                model2.train_on_batch(x[cur_line:futur_line], x[cur_line:futur_line]))
             cur_line = futur_line
-        else:
+        elif (cur_line<len_of_data):
+            print('fuck')
             model_loss.append(model.train_on_batch(x[cur_line:len_of_data], y[cur_line:len_of_data]))
-            model2_loss.append(model2.train_on_batch(x[cur_line:len_of_data], x[cur_line:len_of_data],class_weight = dict))
+            model2_loss.append(model2.train_on_batch(x[cur_line:len_of_data], x[cur_line:len_of_data]))
             model2_loss.append(
-                model2.train_on_batch(x[cur_line:len_of_data], x[cur_line:len_of_data], class_weight=dict))
+                model2.train_on_batch(x[cur_line:len_of_data], x[cur_line:len_of_data]))
         print("Epoch #{}: model Loss: {}, model2 Loss: {}".format(epoch + 1, model_loss[-1], model2_loss[-1]))
 
 def pretrain_on_epoch(model2, x, y, dict, batch_size=1):
@@ -111,13 +112,13 @@ def pretrain_on_epoch(model2, x, y, dict, batch_size=1):
         # print("Epoch #{}: , model2 Loss: {}".format(epoch + 1, model2_loss[-1]))
 
 ##First partial model
-input = Input(shape=(90,))
+input = Input(shape=(10,9))
 base_m, base_m_out = base_model(input)
 
 ##Two full models
-input = Input(shape=(90,))
+input = Input(shape=(10,9))
 model_for_decode, model_for_decode_out = model_for_decoder(input, base_m)
-input = Input(shape=(90,))
+input = Input(shape=(10,9))
 model_to_eval, model_to_eval_out = model_for_for_values(input, base_m)
 
 
@@ -137,14 +138,18 @@ for i in range(0,10):
 # for epoch in range(0,100):
 #     pretrain_on_epoch(model_for_decode,x,y,dict,1)
 #     print('####################################',model_for_decode.test_on_batch(x_test, x_test ))
-
-for epoch in range(0,20):
+g_list = []
+for epoch in range(0,1):
     train_on_epoch(model_to_eval, model_for_decode, x, y,dict, 1)
-    print('####################################', model_for_decode.test_on_batch(x_test, x_test))
+    g_list.append(model_for_decode.test_on_batch(x_test, x_test))
+    print('####################################', g_list[-1])
 
-print(find_index(Y[:,0],y_test[0,0]))
-f = np.reshape(np.round(model_for_decode.predict(x_test)[0]), (1,90))
+
+
+f = np.round(model_for_decode.predict(x_test))
 f = model_to_eval.predict(f)
-print(y_test[0],f )
-print(find_index(Y[:,0],f[0,0]))
+for i in range(0,test_samples):
+    print(find_index(Y[:, 0], y_test[i, 0]))
+    print(find_index(Y[:,0],f[i,0]))
+    print('######################')
 

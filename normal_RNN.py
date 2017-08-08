@@ -20,11 +20,7 @@ number_of_bits_per_layer = 9
 X = np.zeros((dataset.shape[0], time_distribution_steps, number_of_bits_per_layer))
 for i in range(0,dataset.shape[0]):
     bit = get_bin(int(dataset[i,0]), time_distribution_steps*number_of_bits_per_layer)
-    bit_count = 0
-    for steps in range(0, time_distribution_steps):
-        for bits_per_layer in range(0, number_of_bits_per_layer):
-            X[i, steps, bits_per_layer] = bit[bit_count]
-            bit_count += 1
+
 
 
 Y = dataset[:,1:7]

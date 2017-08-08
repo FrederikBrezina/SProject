@@ -1,4 +1,4 @@
-import gp_bayes_var_depth as bayes_var
+import finalize.gp_bayes_var_depth_finished as bayes_var
 from finalize.dense_training import loss_nn_dense
 import numpy as np
 import sys
@@ -20,10 +20,14 @@ def call_core(loss_fce,optimizer,min_depth, max_depth,min_units, max_units, act_
         for act_bounds in range(0, number_of_act_fce):
             bounds[i * (number_of_act_fce + 1) + 1 + act_bounds, 0] = 0
             bounds[i * (number_of_act_fce + 1) + 1 + act_bounds, 1] = 1
+
     for act_bounds in range(int((max_depth-1)*(number_of_act_fce+1)),int((max_depth-1)*(number_of_act_fce+1) + number_of_act_fce)):
         bounds[act_bounds, 0] = 0
         bounds[act_bounds, 1] = 1
-    return bayes_var.bayesian_optimisation(x,y, x_test, y_test, loss_fce, optimizer,min_depth, max_depth,number_of_iteration,loss_nn_dense, bounds,act_functions_to_use,  n_pre_samples=number_of_pre_samples_per_depth, output=output)
+
+    return bayes_var.bayesian_optimisation(x,y, x_test, y_test, loss_fce, optimizer,min_depth, max_depth,
+                                           number_of_iteration,loss_nn_dense, bounds,act_functions_to_use,
+                                           n_pre_samples=number_of_pre_samples_per_depth, output=output)
 
 def command_line_interface():
     ##getting activation functions to search trough
@@ -96,12 +100,17 @@ def command_line_interface():
     output = input()
 
 
-    return act_fce, optimizer, loss, min_depth, max_depth, min_units, max_units, n_iter, n_presamples, datasetx, datasety, test_number, output
+    return act_fce, optimizer, loss, min_depth, max_depth, min_units, max_units,\
+           n_iter, n_presamples, datasetx, datasety, test_number, output
 
 if __name__ == "__main__":
     # act_fce, optimizer, loss, min_depth, max_depth, min_units, max_units, n_iter, n_presamples, datasetx, datasety, test_number, output = command_line_interface()
-    loss, optimizer, min_depth, max_depth, min_units, max_units, act_fce, n_iter, n_presamples, datasetx, datasety, test_number, output = 'categorical_crossentropy', 'adam', 2,10,2,100, ['softmax', 'elu',  'softplus', 'softsign', 'relu', 'tanh', 'sigmoid', 'hard_sigmoid','linear'] , 10,2,'X.txt', 'Y.txt', 10,'c.txt'
-    call_core(loss, optimizer, min_depth, max_depth, min_units, max_units, act_fce, n_iter, n_presamples, datasetx, datasety, test_number, output)
+    loss, optimizer, min_depth, max_depth, min_units, max_units, act_fce, n_iter, n_presamples,\
+    datasetx, datasety, test_number, output = 'categorical_crossentropy', 'adam', 2,10,2,100, \
+                                              ['softmax', 'elu',  'softplus', 'softsign', 'relu', 'tanh', 'sigmoid', 'hard_sigmoid','linear'] ,\
+                                              10,2,'X.txt', 'Y.txt', 10,'c.txt'
+    call_core(loss, optimizer, min_depth, max_depth, min_units, max_units, act_fce, n_iter,
+              n_presamples, datasetx, datasety, test_number, output)
 
 
 

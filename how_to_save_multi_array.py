@@ -10,6 +10,7 @@ output = open('data.pkl', 'wb')
 pickle.dump(data, output)
 output.close()
 
+
 pkl_file = open('data.pkl', 'rb')
 
 data1 = pickle.load(pkl_file)

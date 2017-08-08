@@ -23,7 +23,7 @@ def call_main(loss, optimizer, min_depth, max_depth, min_units, max_units, act_f
     output1.close()
     #Save their lowest test_losses
     output2 = open(cv_score, 'wb')
-    pickle.dump(arch_list, output2)
+    pickle.dump(loss_list, output2)
     output2.close()
 
     print(arch_list,loss_list)

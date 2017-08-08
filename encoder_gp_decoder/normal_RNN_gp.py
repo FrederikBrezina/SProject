@@ -1,5 +1,5 @@
 from keras.models import Model
-from keras.layers import Input, Dense, LSTM, RepeatVector
+from keras.layers import Input, Dense, LSTM, RepeatVector, concatenate
 from keras.layers.normalization import BatchNormalization
 from keras import regularizers
 import numpy as np
@@ -10,17 +10,20 @@ from keras.layers.wrappers import TimeDistributed
 dimension_of_hidden_layers = 0
 max_depth_glob = 0
 number_of_parameters_per_layer_glob = 0
+dimension_of_input1 = 2
 
-def encoder_model(input):
+def encoder_model(input1, input2):
     #TimeDistributed Dense layer, for each layer in NN config
-    layer = TimeDistributed(Dense(dimension_of_hidden_layers))(input)
+    layer = TimeDistributed(Dense(dimension_of_input1))(input1)
+    layer2 = TimeDistributed(Dense(dimension_of_hidden_layers))(input2)
+    layer = concatenate([layer, layer2])
     #Apply the LSTM to each layer which passed thourgh dense first
     layer = LSTM(dimension_of_hidden_layers, kernel_regularizer=regularizers.l2(0.01),
                  dropout=0.05, return_sequences=False)(layer)
     #Generate encoded configuration and normalize it
     layer = BatchNormalization()(layer)
-    model = Model(inputs=input, outputs=layer)
-    model.compile(loss='mse', optimizer='adam', metrics=[])
+    model = Model(inputs=[input1, input2], outputs=layer)
+
 
     return model, layer
 
@@ -28,44 +31,51 @@ def model_for_decoder(input):
     #Repeat the context vector and feed it at every time step
     layer = RepeatVector(max_depth_glob)(input) # Get the last output of the GRU and repeats it
     #Return the sequence into time distributed dense network
-    output1 = LSTM(dimension_of_hidden_layers,  kernel_regularizer=regularizers.l2(0.01),
+    output = LSTM(dimension_of_hidden_layers,  kernel_regularizer=regularizers.l2(0.01),
                    dropout=0.05, return_sequences=True, name='lstm_output')(layer)
     #Last layer, Dense layer before the output prediction and reconstruction of the input
-    output1 = TimeDistributed(Dense(number_of_parameters_per_layer_glob))(output1)
-    model = Model(inputs=input,outputs=output1)
-    model.compile(loss='mse', optimizer='adam', metrics=[])
+    output1 = TimeDistributed(Dense(1), name="hidden_units")(output)
+    output2 = TimeDistributed(Dense(number_of_parameters_per_layer_glob - 1), name="act_fce")(output)
+    model = Model(inputs=input,outputs=[output1, output2])
+    model.compile(loss={"hidden_units" : 'mse', "act_fce" : "categorical_crossentropy"}, optimizer='adam', metrics=[])
 
     return model, output1
 
-def encoder_decoder_construct(input, encoder, decoder):
+def encoder_decoder_construct(input1, input2, encoder, decoder):
     #This builds the whole model together
-    layer = encoder(input)
-    output = decoder(layer)
-    model = Model(inputs=input, outputs=output)
-    model.compile(loss='mse', optimizer='adam', metrics=[])
 
-    return model, output
+    layer = encoder([input1, input2])
+    output1, output2 = decoder(layer)
+    model = Model(inputs=[input1,input2], outputs=[output1, output2])
+    model.compile(loss=[ 'mse',  "categorical_crossentropy"], optimizer='adam', metrics=[])
+
+    return model
 
 def set_trainable(model, trainable=False):
     model.trainable = trainable
     for layer in model.layers:
         layer.trainable = trainable
 
-def train_on_epoch(model2, x, x_t, epoch, batch_size = 10, reverse_order = True):
-    len_of_data = x.shape[0]
+def train_on_epoch(model2, x_fce, x_fce_t, x_h, x_h_t , epoch, batch_size = 10, reverse_order = True):
+    len_of_data = x_fce.shape[0]
     cur_line = 0
     model_loss, model2_loss = [], []
     if reverse_order:
-        x_2 = x_t
+        x_fce_2 = x_fce_t
+        x_h_2 = x_h_t
     else:
-        x_2 = x
+        x_fce_2 = x_fce
+        x_h_2 = x_h
     for i in range(0, int(len_of_data/ batch_size) + 1):
         futur_line = cur_line + batch_size
         if (futur_line)<= len_of_data:
-            model2_loss.append(model2.train_on_batch(x[cur_line:(futur_line)], x_2[cur_line:(futur_line)]))
+            model2_loss.append(model2.train_on_batch([x_h[cur_line:(futur_line)], x_fce[cur_line:(futur_line)]],
+                                                     [x_h_2[cur_line:(futur_line)], x_fce_2[cur_line:(futur_line)]
+                                                      ]))
             cur_line = futur_line
         elif (cur_line<len_of_data):
-            model2_loss.append(model2.train_on_batch(x[cur_line:len_of_data], x_2[cur_line:len_of_data]))
+            model2_loss.append(model2.train_on_batch([x_h[cur_line:(len_of_data)], x_fce[cur_line:(len_of_data)]],
+                                                     [x_h_2[cur_line:(len_of_data)], x_fce_2[cur_line:(len_of_data)]]))
 
         print("Epoch #{}: model Loss: {}".format(epoch + 1,model2_loss[-1]))
 
@@ -119,33 +129,41 @@ def train_model(dimension_of_decoder, num_of_act_fce, min_units, max_units,min_d
 
     #Constructing the model
     #Constructing encoder
-    input = Input(shape=(max_depth, no_of_parameters_per_layer,))
-    base_m, base_m_out = encoder_model(input)
+    input1 = Input(shape=(max_depth, num_of_act_fce,))
+    input2 = Input(shape=(max_depth, 1,))
+    base_m, base_m_out = encoder_model(input2, input1)
     #Constructing decoder
     input = Input(shape=(dimension_of_hidden_layers,))
     decoder, decoder_out = model_for_decoder(input)
     #Constructing the whole model
-    input = Input(shape=(max_depth, no_of_parameters_per_layer,))
-    full_model, full_model_out = encoder_decoder_construct(input,base_m,decoder)
+    input1 = Input(shape=(max_depth, num_of_act_fce,))
+    input2 = Input(shape=(max_depth, 1,))
+    full_model= encoder_decoder_construct(input2, input1,base_m,decoder)
 
     #Initalize the random data to train upon
-    datax = np.zeros((no_of_training_data, max_depth, no_of_parameters_per_layer))
-    datax_t = np.zeros((no_of_training_data, max_depth, no_of_parameters_per_layer))
+    datax_fce = np.zeros((no_of_training_data, max_depth, num_of_act_fce))
+    datax_fce_t = np.zeros((no_of_training_data, max_depth, num_of_act_fce))
+    datax_hidden = np.zeros((no_of_training_data, max_depth, 1))
+    datax_hidden_t = np.zeros((no_of_training_data, max_depth, 1))
+
     for i in range(0, no_of_training_data):
         depth = int(round(np.random.random() * (max_depth - min_depth + 1) * (1 - epsilon) + (min_depth - 0.5 + epsilon)))
         bounds = create_bounds(num_of_act_fce, min_units, max_units, depth, max_depth)
         x = serialize_next_sample_for_gp(np.random.uniform(bounds[:, 0], bounds[:, 1], bounds.shape[0]), no_of_parameters_per_layer)
         bit_count = 0
         for steps in range(0, max_depth):
-            for bits_per_layer in range(0, no_of_parameters_per_layer):
-                datax[i, steps, bits_per_layer] = x[bit_count]
+            datax_hidden[i, steps, 0] = x[bit_count]
+            bit_count += 1
+            for bits_per_layer in range(0, num_of_act_fce):
+                datax_fce[i, steps, bits_per_layer] = x[bit_count]
                 bit_count += 1
         for steps in range(0, max_depth):
-            datax_t[i,steps,:] = datax[i,max_depth - steps -1,:]
+            datax_hidden_t[i, steps, :] = datax_hidden[i, max_depth - steps - 1, :]
+            datax_fce_t[i,steps,:] = datax_fce[i,max_depth - steps -1,:]
 
     #Train the encoder_decoder
     for epoch in range(0,150):
-        train_on_epoch(full_model, datax, datax_t, epoch, 10, reverse_order=reverse_order)
+        train_on_epoch(full_model, datax_fce, datax_fce_t, datax_hidden, datax_hidden_t, epoch, 10, reverse_order=reverse_order)
     #Return encoder and decoder
     return base_m, decoder
 

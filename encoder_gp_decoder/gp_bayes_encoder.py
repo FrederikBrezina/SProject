@@ -8,7 +8,7 @@ import copy
 from scipy.stats import norm
 from scipy.optimize import minimize
 from encoder_gp_decoder.dense_loss import loss_nn_dense
-from encoder_gp_decoder.normal_RNN_gp import train_model
+from encoder_gp_decoder.normal_RNN_gp import train_model, train_all_models, transform_into_timeseries, create_bounds
 import sys
 
 reverse_order = True
@@ -101,7 +101,7 @@ def sample_next_hyperparameter(acquisition_func, gaussian_process, evaluated_los
 
 
 def bayesian_optimisation(x,y,x_test,y_test, act_fce, loss, optimizer, batch_size, min_depth, max_depth, min_units, max_units, n_iters,  n_pre_samples=5,
-                          gp_params=None, random_search=False, alpha=1e-5, epsilon=1e-7):
+                          gp_params=None, random_search=False, alpha=1e-5, epsilon=1e-7, retrain_model_rounds = 10):
     """ bayesian_optimisation
 
     Uses Gaussian Processes to optimise the loss function `sample_loss`.
@@ -137,6 +137,7 @@ def bayesian_optimisation(x,y,x_test,y_test, act_fce, loss, optimizer, batch_siz
     x_list = []
     serialized_arch_list = []
     y_list = []
+    decoded_sanitized_list, performance_metrics_list = [], []
     n_of_act_fce = len(act_fce)
     dimension_of_hidden_layers = max_depth * 5  #this is the dimension between encoder decoder, also the dimension in which GP is working on
     bounds = np.zeros((dimension_of_hidden_layers, 2))
@@ -146,7 +147,7 @@ def bayesian_optimisation(x,y,x_test,y_test, act_fce, loss, optimizer, batch_siz
     non_sense = False
 
     ##Train encoder decoder
-    encoder, decoder = train_model(dimension_of_hidden_layers,n_of_act_fce, min_units, max_units,
+    encoder, decoder, full_model = train_model(dimension_of_hidden_layers,n_of_act_fce, min_units, max_units,
                                    min_depth, max_depth,1000, n_of_act_fce+1, reverse_order=reverse_order)
 
     #Do initial search through the space
@@ -156,23 +157,30 @@ def bayesian_optimisation(x,y,x_test,y_test, act_fce, loss, optimizer, batch_siz
         params = np.random.uniform(bounds[:, 0], bounds[:, 1], bounds.shape[0])
         params2 = params.reshape((1,n_params))
         #Decode the encoded config and sanitize the output
+
         decoded_sanitized = sanitize_next_sample_for_gp(decoder.predict(params2), n_of_act_fce + 1,
                                                         min_units, max_units, y.shape[1])
-
+        print(decoded_sanitized)
         #If depth is smaller than allowed, re do the example
         if int(decoded_sanitized.shape[0]/2) < min_depth:
-            print(number_of_examples)
+
             continue
 
+        decoded_sanitized_list.append(decoded_sanitized)
         #Train the configuration pn data
         x_list.append(params)
         serialized_arch_list.append(seriliaze_next_sample_for_loss_fce(decoded_sanitized, n_of_act_fce + 1))
-        y_list.append(sample_loss(serialized_arch_list[-1], x, y, x_test, y_test, act_fce, loss,
-                                  optimizer, batch_size, best_last_act = False))
+        performance_metrics = sample_loss(serialized_arch_list[-1], x, y, x_test, y_test, act_fce, loss,
+                                  optimizer, batch_size)
+
+        performance_metrics_list.append(performance_metrics)
+        y_list.append(performance_metrics[0])
         number_of_examples += 1
 
     xp = np.array(x_list)
     yp = np.array(y_list)
+
+
 
     # Create the GP
     ##For possible gp_params configuration
@@ -188,6 +196,9 @@ def bayesian_optimisation(x,y,x_test,y_test, act_fce, loss, optimizer, batch_siz
 
     #Now choose next architecture based on knowledge of past results
     for n in range(n_iters):
+        if (n%retrain_model_rounds == 0):
+            x_list = retrain_encode_again(decoded_sanitized_list, performance_metrics_list, encoder)
+            xp = np.array(x_list)
 
         #Fit, the results into gp
         model.fit(xp, yp)
@@ -209,7 +220,10 @@ def bayesian_optimisation(x,y,x_test,y_test, act_fce, loss, optimizer, batch_siz
         if int(decoded_sanitized.shape[0] / 2) >= min_depth:
             serialized_arch_list.append(seriliaze_next_sample_for_loss_fce(decoded_sanitized, n_of_act_fce + 1))
             # Sample loss for new set of parameters
-            cv_score = sample_loss(serialized_arch_list[-1], x, y, x_test, y_test, act_fce, loss, optimizer, batch_size, best_last_act = False)
+            cv_score = sample_loss(serialized_arch_list[-1], x, y, x_test, y_test, act_fce, loss, optimizer, batch_size)
+            decoded_sanitized_list.append(decoded_sanitized)
+            performance_metrics_list.append(cv_score)
+            cv_score = cv_score[0]
 
         #If it does not, do not train, but set the cv_score to very high
         else:
@@ -218,6 +232,8 @@ def bayesian_optimisation(x,y,x_test,y_test, act_fce, loss, optimizer, batch_siz
             else:
                 cv_score = max(y_list) * 100
                 non_sense = True
+
+
 
         # Update lists
         x_list.append(next_sample)
@@ -258,25 +274,22 @@ def sanitize_next_sample_for_gp(next_sample, number_of_parameters_per_layer, min
     #Decoder outputs real numbers therefore we have to round them
     #Decoder as well outputs unnormalized porbability across the activations to use for each layer
     #This has to be sanitized as well, therefore the activation function with highest number is set to 1, rest to 0
-    depth = next_sample.shape[1]
-    next_sample_temp = np.zeros((number_of_parameters_per_layer*depth))
+    depth = next_sample[0].shape[1]
+    seriliezed_next_sample = np.zeros((number_of_parameters_per_layer*depth))
     #The decoded output is timedistributed in 3rd dimension, flatten it
-    for i in range(0,depth):
-        next_sample_temp[number_of_parameters_per_layer*i:number_of_parameters_per_layer*(i+1)] = next_sample[0,i,:]
-    #Set the the decoded example to flattened version of its self
-    next_sample = next_sample_temp
-    next_sample = next_sample.tolist()
-    seriliezed_next_sample = np.zeros((len(next_sample)))
-    #Sanitize the exaple
-    number_of_layers = int(len(next_sample) / number_of_parameters_per_layer)
+
+
     if reverse_order:
-        for i in range(0, number_of_layers):
+        for i in range(0, depth):
 
             #This is the number of hidden units
-            temp = round(next_sample[i * number_of_parameters_per_layer])
 
+            temp = round(next_sample[0][0,i ,0])
+
+            if (temp < 0.5) and (i==0):
+                return np.zeros((1))
             #If it predicts less than 0.5 units than this means the NN config reached its depth
-            if temp < 0.5:
+            elif temp < 0.5:
                 #Hardcode the dimension of output
                 seriliezed_next_sample[(i-1) * number_of_parameters_per_layer] = dimension_of_out_put
                 #Return the shortened example
@@ -284,21 +297,33 @@ def sanitize_next_sample_for_gp(next_sample, number_of_parameters_per_layer, min
                 return seriliezed_next_sample
 
             #If the depth is maximum hardcode the dimension of output
-            if i == number_of_layers - 1:
+            if i == depth - 1:
                 temp = dimension_of_out_put
             seriliezed_next_sample[i * number_of_parameters_per_layer] = temp
 
+            next_sample_temp = next_sample[1][0,i].tolist()
             #Find the index of maxium of unnoramlized porbabilities of activations
-            index = next_sample[(i * number_of_parameters_per_layer) + 1: (i + 1) * number_of_parameters_per_layer].index(
-                    max(next_sample[(i * number_of_parameters_per_layer) + 1: (i + 1) * number_of_parameters_per_layer]))
+            index = next_sample_temp.index(max(next_sample_temp))
 
-            for fce in range(1, number_of_parameters_per_layer):
+            for fce in range(0, number_of_parameters_per_layer - 1):
                 #Set the maximum to one
                 if index == fce:
-                    seriliezed_next_sample[i * number_of_parameters_per_layer + fce] = 1
+                    seriliezed_next_sample[i * number_of_parameters_per_layer + fce + 1] = 1
                 #Set rest to 0
                 else:
-                    seriliezed_next_sample[i * number_of_parameters_per_layer + fce] = 0
+                    seriliezed_next_sample[i * number_of_parameters_per_layer + fce + 1] = 0
 
     return seriliezed_next_sample
+
+def retrain_encode_again(decoded_sanitized_list, performance_metrics_list, encoder):
+    encoded_sanitized_list_new = []
+    train_all_models(decoded_sanitized_list, performance_metrics_list)
+    datax_hidden_perf, datax_hidden_t_perf, datax_fce_perf, datax_fce_t_perf = transform_into_timeseries(decoded_sanitized_list)
+    encoded_data = encoder.predict([datax_hidden_perf, datax_fce_perf])
+
+    for i in range(encoded_data.shape[0]):
+        encoded_sanitized_list_new.append(encoded_data[i])
+    return encoded_sanitized_list_new
+
+
 

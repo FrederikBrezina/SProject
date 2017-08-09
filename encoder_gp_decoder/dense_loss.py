@@ -27,5 +27,5 @@ def loss_nn_dense(args, x, y, x_test, y_test, act_fce, loss, optimizer, batch_si
               callbacks=[acc_his], shuffle=True)
 
     #Return the best possible test_loss
-    return min(acc_his.losses_val_losses)
+    return [min(acc_his.losses_val_losses),0]
 

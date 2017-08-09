@@ -115,6 +115,6 @@ if __name__ == "__main__":
     loss, optimizer, min_depth, max_depth, min_units, max_units, act_fce, n_iter, n_presamples, \
     datasetx, datasety, test_number, output, cv_score, batch_size = 'categorical_crossentropy', 'adam', 2, 11, 2, 100, [
         'softmax', 'elu', 'softplus', 'softsign', 'relu', 'tanh', 'sigmoid', 'hard_sigmoid',
-        'linear'], 100, 20, 'X_basic_task.txt', 'Y_basic_task.txt', 100, 'arch.txt', "loss.txt", 10
+        'linear'], 100, 2, 'X_basic_task.txt', 'Y_basic_task.txt', 100, 'arch.txt', "loss.txt", 10
     call_main(loss, optimizer, min_depth, max_depth, min_units, max_units, act_fce, n_iter,
               n_presamples, datasetx, datasety, test_number, output, cv_score,batch_size)

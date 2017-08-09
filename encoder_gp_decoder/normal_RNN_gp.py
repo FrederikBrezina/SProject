@@ -206,10 +206,8 @@ def create_first_training_data(no_of_training_data,min_units, max_units,
     return datax_hidden, datax_hidden_t, datax_fce, datax_fce_t
 
 def transform_into_timeseries(datax):
-    global max_depth_glob
-    max_depth = max_depth_glob
 
-    global number_of_parameters_per_layer_glob
+    max_depth = max_depth_glob
     num_of_act_fce = number_of_parameters_per_layer_glob - 1
 
     length_of_datax = len(datax)
@@ -249,16 +247,10 @@ def train_model(dimension_of_decoder, num_of_act_fce1, min_units1, max_units1,mi
                 no_of_training_data1, no_of_parameters_per_layer, reverse_order):
     #Callable function from outside to train the model
     #Setting global variables for the models
-    global max_depth_glob
+    global max_depth_glob, number_of_parameters_per_layer_glob, dimension_of_hidden_layers, encoder_decoder, \
+        encoder_performance, no_of_training_data, min_units, max_units, min_depth, num_of_act_fce
+
     max_depth_glob = max_depth
-    global number_of_parameters_per_layer_glob
-    global dimension_of_hidden_layers
-    global encoder_decoder
-    global encoder_performance
-    global no_of_training_data, min_units
-    global max_units
-    global min_depth
-    global num_of_act_fce
 
     no_of_training_data, min_units = no_of_training_data1, min_units1
     max_units = max_units1
@@ -313,18 +305,6 @@ def train_all_models(datax, datay):
     for i in range(0,length_of_datax):
         # Do datay now
         datay_perf[i, :] = datay[i]
-
-
-    global encoder_decoder
-    global encoder_performance
-    global no_of_training_data
-    global min_units
-    global max_units
-    global min_depth
-    global max_depth_glob
-    global num_of_act_fce
-    global number_of_parameters_per_layer_glob
-    global dimension_of_hidden_layers
 
     datax_hidden, datax_hidden_t, datax_fce, datax_fce_t = create_first_training_data(no_of_training_data, min_units,
                                                                                       max_units,

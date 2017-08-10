@@ -26,7 +26,7 @@ def encoder_model(input1, input2):
     layer = concatenate([layer, layer2])
     #Apply the LSTM to each layer which passed thourgh dense first
     layer = LSTM(dimension_of_hidden_layers, kernel_regularizer=regularizers.l2(0.01),
-                 dropout=0.05, return_sequences=False)(layer)
+                 return_sequences=False)(layer)
     #Generate encoded configuration and normalize it
     layer = BatchNormalization()(layer)
     model = Model(inputs=[input1, input2], outputs=layer)
@@ -38,7 +38,7 @@ def model_for_decoder(input):
     layer = RepeatVector(max_depth_glob)(input) # Get the last output of the GRU and repeats it
     #Return the sequence into time distributed dense network
     output = LSTM(dimension_of_hidden_layers,  kernel_regularizer=regularizers.l2(0.01),
-                   dropout=0.05, return_sequences=True, name='lstm_output')(layer)
+                   return_sequences=True, name='lstm_output')(layer)
     #Last layer, Dense layer before the output prediction and reconstruction of the input
     output1 = TimeDistributed(Dense(10, activation='selu', kernel_regularizer=regularizers.l2(0.01)))(output)
     output1 = TimeDistributed(Dense(1, activation='relu'), name="hidden_units")(output1)
@@ -61,9 +61,9 @@ def encoder_performance_construct(input1, input2, encoder, decoder):
 
     layer = encoder([input1, input2])
     output1, output2 = decoder(layer)
-    layer = Dense(15, activation='relu')(layer)
-    layer = Dense(10, activation='relu')(layer)
-    output3 = Dense(2, activation='tanh')(layer)
+    layer = Dense(15, activation='relu', kernel_regularizer=regularizers.l2(0.01))(layer)
+    layer = Dense(10, activation='relu', kernel_regularizer=regularizers.l2(0.01))(layer)
+    output3 = Dense(5, activation='tanh', kernel_regularizer=regularizers.l2(0.01))(layer)
     model = Model(inputs=[input1, input2], outputs=[output1,output2,output3])
     model.compile(loss='mse', optimizer='adam', metrics=[])
 
@@ -188,7 +188,7 @@ def create_first_training_data(no_of_training_data,min_units, max_units,
 
     for i in range(0, no_of_training_data):
         depth = int(
-            round(np.random.random() * (max_depth - min_depth + 1) * (1 - epsilon) + (min_depth - 0.5 + epsilon)))
+            round(np.random.random() * (max_depth - min_depth + 1) * (1 - epsilon) + (min_depth - 0.5 + (epsilon*(max_depth - min_depth + 2 )))))
 
         bounds = create_bounds(num_of_act_fce, min_units, max_units, depth, max_depth)
         x = serialize_next_sample_for_gp(np.random.uniform(bounds[:, 0], bounds[:, 1], bounds.shape[0]),

@@ -452,6 +452,11 @@ def find_set_in_z_space(number, output, probability):
     depth = len(act_index_list)
 
     while number_for_bin < combination_number:
+        #Skip with 1 - probability
+        if probability < np.random.uniform():
+            number_for_bin + 1
+            continue
+
         NN_config_list = []
         binary_string = get_bin(number_for_bin, number_of_parameters_per_layer_glob*max_depth_glob)
         flag = False
@@ -479,6 +484,11 @@ def find_set_in_z_space(number, output, probability):
     combination_number = 2 ** (number_of_variable_parameters)
     number_for_bin = 0
     while number_for_bin < combination_number:
+        # Skip with 1 - probability
+        if probability < np.random.uniform():
+            number_for_bin + 1
+            continue
+
         NN_config_list = []
         binary_string = get_bin(number_for_bin, number_of_variable_parameters)
         flag = False

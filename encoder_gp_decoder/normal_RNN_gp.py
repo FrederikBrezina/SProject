@@ -4,6 +4,7 @@ from keras.layers.normalization import BatchNormalization
 from keras import regularizers
 import numpy as np
 
+
 from keras.layers.wrappers import TimeDistributed
 
 #Set global variables
@@ -14,10 +15,19 @@ dimension_of_input1 = 2
 encoder_decoder = None
 encoder_performance = None
 no_of_training_data, min_units = None, None
+decoder_encoder_M = None
+encoder_M = None
+decoder_M = None
 max_units = None
 min_depth = None
 num_of_act_fce = None
 
+def decoder_encoder(decoder, encoder, input):
+    layer = decoder(input)
+    output = encoder(layer)
+    model = Model(inputs=input, outputs = output)
+    model.compile(loss='mse', optimizer='adam', metrics=[])
+    return model
 
 def encoder_model(input1, input2):
     #TimeDistributed Dense layer, for each layer in NN config
@@ -30,6 +40,7 @@ def encoder_model(input1, input2):
     #Generate encoded configuration and normalize it
     layer = BatchNormalization()(layer)
     model = Model(inputs=[input1, input2], outputs=layer)
+    model.compile(loss='mse', optimizer='adam', metrics=[])
 
     return model, layer
 
@@ -69,6 +80,10 @@ def encoder_performance_construct(input1, input2, encoder, decoder):
 
     return model
 
+def print_trainability(model):
+    for layer in model.layers:
+        print(layer.trainable)
+
 def set_trainable(model, trainable=False):
     model.trainable = trainable
     for layer in model.layers:
@@ -101,17 +116,31 @@ def train_on_epoch(model2, x_h, x_h_t , x_fce, x_fce_t, epoch, model = None, dat
     cur_line, cur_line_perf = 0, 0
     model_loss, model2_loss = [0], []
     rounds_from_last_train_perf = 0
+    model_decoder_encoder_loss = []
 
     for i in range(0,  no_of_batches):
         futur_line = cur_line + batch_size
         if (futur_line)<= len_of_data:
+            #Train full model
+            set_trainable(encoder_M, False), set_trainable(decoder_M, True)
             model2_loss.append(model2.train_on_batch([x_h[cur_line:(futur_line)], x_fce[cur_line:(futur_line)]],
                                                      [x_h_2[cur_line:(futur_line)], x_fce_2[cur_line:(futur_line)]
                                                       ]))
+
+            set_trainable(encoder_M, True), set_trainable(decoder_M, False)
+            prediction = encoder_M.predict([x_h[cur_line:(futur_line)], x_fce[cur_line:(futur_line)]])
+            model_decoder_encoder_loss.append(decoder_encoder_M.train_on_batch(prediction, prediction))
+
+            #Train only encoder
             cur_line = futur_line
         elif (cur_line<len_of_data):
+            set_trainable(encoder_M, False), set_trainable(decoder_M, True)
             model2_loss.append(model2.train_on_batch([x_h[cur_line:(len_of_data)], x_fce[cur_line:(len_of_data)]],
                                                      [x_h_2[cur_line:(len_of_data)], x_fce_2[cur_line:(len_of_data)]]))
+
+            set_trainable(encoder_M, True), set_trainable(decoder_M, False)
+            prediction = encoder_M.predict([x_h[cur_line:(len_of_data)], x_fce[cur_line:(len_of_data)]])
+            model_decoder_encoder_loss.append(decoder_encoder_M.train_on_batch(prediction, prediction))
 
         #Train the performance model
         futur_line_perf = cur_line_perf + batch_size
@@ -140,7 +169,8 @@ def train_on_epoch(model2, x_h, x_h_t , x_fce, x_fce_t, epoch, model = None, dat
                         and rounds_from_last_train_perf > 15:
                     cur_line_perf = 0
 
-        print("Epoch #{}: model_full Loss: {}, model_perf_Loss: {}".format(epoch + 1,model2_loss[-1], model_loss[-1]))
+        print("Epoch #{}: model_full Loss: {}, model_decoder_encoder_loss: {},"
+              " model_perf_Loss: {}".format(epoch + 1,model2_loss[-1],model_decoder_encoder_loss[-1], model_loss[-1]))
 
 
 def create_bounds(num_of_act_fce, min_units, max_units, depth, max_depth):
@@ -248,7 +278,7 @@ def train_model(dimension_of_decoder, num_of_act_fce1, min_units1, max_units1,mi
     #Callable function from outside to train the model
     #Setting global variables for the models
     global max_depth_glob, number_of_parameters_per_layer_glob, dimension_of_hidden_layers, encoder_decoder, \
-        encoder_performance, no_of_training_data, min_units, max_units, min_depth, num_of_act_fce
+        encoder_performance, no_of_training_data, min_units, max_units, min_depth, num_of_act_fce, decoder_encoder_M, decoder_M, encoder_M
 
     max_depth_glob = max_depth
 
@@ -267,14 +297,21 @@ def train_model(dimension_of_decoder, num_of_act_fce1, min_units1, max_units1,mi
     input1 = Input(shape=(max_depth, num_of_act_fce,))
     input2 = Input(shape=(max_depth, 1,))
     base_m, base_m_out = encoder_model(input2, input1)
+    encoder_M = base_m
     #Constructing decoder
     input = Input(shape=(dimension_of_hidden_layers,))
     decoder, decoder_out = model_for_decoder(input)
+    decoder_M = decoder
     #Constructing the whole model encoder_decoder
     input1 = Input(shape=(max_depth, num_of_act_fce,))
     input2 = Input(shape=(max_depth, 1,))
     full_model= encoder_decoder_construct(input2, input1,base_m,decoder)
     encoder_decoder = full_model
+    #Construct the decoder_encoder
+    input = Input(shape=(dimension_of_hidden_layers,))
+    decoder_encoder_M = decoder_encoder(decoder,base_m, input)
+
+
 
     #Constructing a encoder_performance model
     input1 = Input(shape=(max_depth, num_of_act_fce,))
@@ -292,9 +329,8 @@ def train_model(dimension_of_decoder, num_of_act_fce1, min_units1, max_units1,mi
         train_on_epoch(full_model, datax_hidden, datax_hidden_t, datax_fce, datax_fce_t, epoch, batch_size=10,
                        reverse_order=reverse_order)
 
-    #Return encoder and decoder
+    #Return encoder and decoder, full model
     return base_m, decoder, full_model
-
 
 def train_all_models(datax, datay):
     datax_hidden_perf, datax_hidden_t_perf, datax_fce_perf, datax_fce_t_perf = transform_into_timeseries(datax)

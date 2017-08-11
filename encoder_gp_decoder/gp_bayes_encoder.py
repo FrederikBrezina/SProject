@@ -155,12 +155,19 @@ def bayesian_optimisation(x,y,x_test,y_test, act_fce, loss, optimizer, batch_siz
     while number_of_examples < n_pre_samples:
         #Choose random encoded NN configuration
         params = np.random.uniform(bounds[:, 0], bounds[:, 1], bounds.shape[0])
+
         params2 = params.reshape((1,n_params))
         #Decode the encoded config and sanitize the output
 
         decoded_sanitized = sanitize_next_sample_for_gp(decoder.predict(params2), n_of_act_fce + 1,
                                                         min_units, max_units, y.shape[1])
-        print(decoded_sanitized)
+        datax_hidden_perf, datax_hidden_t_perf, datax_fce_perf, datax_fce_t_perf = transform_into_timeseries(
+            [decoded_sanitized,])
+
+        #Adjust the encoded params to decoded_sanitized
+        encoded_data = encoder.predict([datax_hidden_perf, datax_fce_perf])
+        params = encoded_data[0]
+
         #If depth is smaller than allowed, re do the example
         if int(decoded_sanitized.shape[0]/2) < min_depth:
 

@@ -1,9 +1,10 @@
 from keras.models import Model
-from keras.layers import Input, Dense, LSTM, RepeatVector, concatenate
+from keras.layers import Input, Dense, LSTM, RepeatVector, concatenate, Flatten
 from keras.layers.normalization import BatchNormalization
 from keras import regularizers
+from keras.layers.local import LocallyConnected1D
 import numpy as np
-
+import sys
 
 from keras.layers.wrappers import TimeDistributed
 
@@ -28,6 +29,23 @@ def decoder_encoder(decoder, encoder, input):
     model = Model(inputs=input, outputs = output)
     model.compile(loss='mse', optimizer='adam', metrics=[])
     return model
+
+def local_connected(input1):
+    output = LocallyConnected1D(dimension_of_hidden_layers, 1, kernel_initializer='ones', bias_initializer='zeros')(
+        input1)
+    output = Flatten()(output)
+    model = Model(inputs=input1, outputs=output)
+
+    return model
+
+def encoded_decoder(decoder, input1, local):
+    layer = local(input1)
+    output1, output2 = decoder(layer)
+    model = Model(inputs=input1, outputs=[output1, output2])
+    model.compile(loss=['mse', "categorical_crossentropy"], optimizer='adam', metrics=[])
+
+    return model
+
 
 def encoder_model(input1, input2):
     #TimeDistributed Dense layer, for each layer in NN config
@@ -81,8 +99,11 @@ def encoder_performance_construct(input1, input2, encoder, decoder):
     return model
 
 def print_trainability(model):
+    count = 0
     for layer in model.layers:
-        print(layer.trainable)
+        if count == 0:
+            print(layer.trainable)
+        count+=1
 
 def set_trainable(model, trainable=False):
     model.trainable = trainable
@@ -123,6 +144,7 @@ def train_on_epoch(model2, x_h, x_h_t , x_fce, x_fce_t, epoch, model = None, dat
         if (futur_line)<= len_of_data:
             #Train full model
             set_trainable(encoder_M, False), set_trainable(decoder_M, True)
+
             model2_loss.append(model2.train_on_batch([x_h[cur_line:(futur_line)], x_fce[cur_line:(futur_line)]],
                                                      [x_h_2[cur_line:(futur_line)], x_fce_2[cur_line:(futur_line)]
                                                       ]))
@@ -131,9 +153,11 @@ def train_on_epoch(model2, x_h, x_h_t , x_fce, x_fce_t, epoch, model = None, dat
             prediction = encoder_M.predict([x_h[cur_line:(futur_line)], x_fce[cur_line:(futur_line)]])
             model_decoder_encoder_loss.append(decoder_encoder_M.train_on_batch(prediction, prediction))
 
+
             #Train only encoder
             cur_line = futur_line
         elif (cur_line<len_of_data):
+            sys.exit()
             set_trainable(encoder_M, False), set_trainable(decoder_M, True)
             model2_loss.append(model2.train_on_batch([x_h[cur_line:(len_of_data)], x_fce[cur_line:(len_of_data)]],
                                                      [x_h_2[cur_line:(len_of_data)], x_fce_2[cur_line:(len_of_data)]]))
@@ -225,10 +249,10 @@ def create_first_training_data(no_of_training_data,min_units, max_units,
                                          no_of_parameters_per_layer)
         bit_count = 0
         for steps in range(0, max_depth):
-            datax_hidden[i, steps, 0] = x[bit_count]
+            datax_hidden[i, max_depth_glob - steps - 1, 0] = round(x[bit_count])
             bit_count += 1
             for bits_per_layer in range(0, num_of_act_fce):
-                datax_fce[i, steps, bits_per_layer] = x[bit_count]
+                datax_fce[i, max_depth_glob - steps - 1, bits_per_layer] = x[bit_count]
                 bit_count += 1
         for steps in range(0, max_depth):
             datax_hidden_t[i, steps, :] = datax_hidden[i, max_depth - steps - 1, :]
@@ -353,3 +377,144 @@ def train_all_models(datax, datay):
                        encoder_performance, datax_hidden_perf,
                        datax_hidden_t_perf, datax_fce_perf, datax_fce_t_perf,
                        datay_perf, batch_size=10, reverse_order=True)
+
+def predict_encoded(input,output):
+    input1 = Input(shape=(1,dimension_of_hidden_layers))
+    local_model = local_connected(input1)
+    encoded_M = encoded_decoder(decoder_M,input1,local_model)
+    set_trainable(decoder_M, False), set_trainable(local_model, True)
+    for epoch in range(100):
+        encoded_M.train_on_batch(input,output)
+
+    return local_model.predict(input)
+
+def possibilities(number, output):
+    epsilon = 0.1 #For hidden unts as well categories
+    epsilon2 = 0.05 #Depth hidden unit
+    epsilon3 = 0.001
+    depth = output[0].shape[1]
+    bounds_high_high = np.zeros((max_depth_glob*number_of_parameters_per_layer_glob, 2))
+    bounds_high_low = np.zeros((max_depth_glob*number_of_parameters_per_layer_glob, 2))
+    act_index_list = list_of_indexes_of_act_in_model(output[1], depth)
+    #0-depth are same class problem
+    for i in range(0,depth):
+        bounds_high_high[i*number_of_parameters_per_layer_glob,0] = output[0][0,i,0] - 0.5 + epsilon
+        bounds_high_high[i*number_of_parameters_per_layer_glob,1] = output[0][0,i,0] + 0.5 - epsilon
+        bounds_high_low[i * number_of_parameters_per_layer_glob, 0] = output[0][0, i, 0] - 0.5 + epsilon
+        bounds_high_low[i * number_of_parameters_per_layer_glob, 1] = output[0][0, i, 0] + 0.5 - epsilon
+        for i2 in range(0, num_of_act_fce):
+            bounds_high_high[i * number_of_parameters_per_layer_glob + i2 + 1, 0] = 0
+            bounds_high_high[i * number_of_parameters_per_layer_glob + i2+ 1, 1] = 1 - epsilon
+            if i2 == act_index_list[i]:
+                bounds_high_high[i * number_of_parameters_per_layer_glob + i2 + 1, 0] = 1 - epsilon3
+                bounds_high_high[i * number_of_parameters_per_layer_glob + i2 + 1, 1] = 1
+
+        for i2 in range(0, num_of_act_fce):
+            bounds_high_low[i * number_of_parameters_per_layer_glob+ i2 + 1, 0] = 0
+            bounds_high_low[i * number_of_parameters_per_layer_glob+ i2 + 1, 1] = 0
+            if i2 == act_index_list[i]:
+                bounds_high_low[i * number_of_parameters_per_layer_glob + i2 + 1, 0] = 0 + epsilon
+                bounds_high_low[i * number_of_parameters_per_layer_glob + i2 + 1, 1] = 0 + epsilon
+
+    #depth - depth + 1 is another porblem as special
+    if depth < max_depth_glob:
+        bounds_high_high[depth * number_of_parameters_per_layer_glob, 0] = 0
+        bounds_high_high[depth * number_of_parameters_per_layer_glob, 1] = 0.5 - epsilon2
+        bounds_high_low[depth * number_of_parameters_per_layer_glob, 0] = 0
+        bounds_high_low[depth * number_of_parameters_per_layer_glob, 1] = 0.5 - epsilon2
+        for i2 in range(0, num_of_act_fce):
+            bounds_high_high[depth * number_of_parameters_per_layer_glob + i2 + 1, 0] = 0
+            bounds_high_high[depth * number_of_parameters_per_layer_glob + i2 + 1, 1] = 1
+            bounds_high_low[depth * number_of_parameters_per_layer_glob + i2 + 1, 0] = 0
+            bounds_high_low[depth * number_of_parameters_per_layer_glob + i2 + 1, 1] = 1
+
+    #Last case depth+1 : max_depth
+    if depth + 1< max_depth_glob:
+        for i in range(depth + 1, max_depth_glob):
+            bounds_high_high[i * number_of_parameters_per_layer_glob, 0] = 0
+            bounds_high_high[i * number_of_parameters_per_layer_glob, 1] = max_units
+            bounds_high_low[i * number_of_parameters_per_layer_glob, 0] = 0
+            bounds_high_low[i * number_of_parameters_per_layer_glob, 1] = max_units
+            for i2 in range(0, num_of_act_fce):
+                bounds_high_high[i * number_of_parameters_per_layer_glob + i2 + 1, 0] = 0
+                bounds_high_high[i * number_of_parameters_per_layer_glob + i2 + 1, 1] = 1
+                bounds_high_low[i * number_of_parameters_per_layer_glob + i2 + 1, 0] = 0
+                bounds_high_low[i * number_of_parameters_per_layer_glob + i2 + 1, 1] = 1
+
+    return bounds_high_high, bounds_high_low, act_index_list
+
+def find_set_in_z_space(number, output, probability):
+    get_bin = lambda x, n: format(x, 'b').zfill(n)
+    encoded_vector_list = []
+    bounds_high_high, bounds_high_low, act_index_list = possibilities(number, output)
+    combination_number = 2 ** (bounds_high_high.shape[0])
+    number_for_bin = 0
+    depth = len(act_index_list)
+
+    while number_for_bin < combination_number:
+        NN_config_list = []
+        binary_string = get_bin(number_for_bin, number_of_parameters_per_layer_glob*max_depth_glob)
+        flag = False
+        for i in range(0,depth):
+            if binary_string[i*number_of_parameters_per_layer_glob + 1 + act_index_list[i]] == '1':
+                number_for_bin += 2**((max_depth_glob*number_of_parameters_per_layer_glob - 1) - (i*number_of_parameters_per_layer_glob + 1 + act_index_list[i]))
+                flag = True
+                break
+        if flag:
+            continue
+        for i2 in range(0, max_depth_glob*number_of_parameters_per_layer_glob):
+            NN_config_list.append(bounds_high_high[i2,int(binary_string[i2])])
+
+        datax_hidden_perf, datax_hidden_t_perf, datax_fce_perf,\
+        datax_fce_t_perf = transform_into_timeseries([NN_config_list,])
+
+        params = np.random.uniform(-2, 2, max_depth_glob*number_of_parameters_per_layer_glob)
+        params = params.reshape((1, 1, dimension_of_hidden_layers))
+        encoded = predict_encoded(params, [datax_hidden_t_perf, datax_fce_t_perf])[0]
+        encoded_vector_list.append(encoded)
+        number_for_bin += 1
+
+
+    number_of_variable_parameters = depth*2 + (max_depth_glob - depth)*number_of_parameters_per_layer_glob
+    combination_number = 2 ** (number_of_variable_parameters)
+    number_for_bin = 0
+    while number_for_bin < combination_number:
+        NN_config_list = []
+        binary_string = get_bin(number_for_bin, number_of_variable_parameters)
+        flag = False
+        for i in range(0, depth):
+            if binary_string[i * 2 + 1] == '1':
+                number_for_bin += 2 ** ((number_of_variable_parameters - 1) - (i * 2 + 1))
+                flag = True
+                break
+        if flag:
+            continue
+        for i2 in range(0, depth):
+
+            NN_config_list.append(bounds_high_low[i2* number_of_parameters_per_layer_glob, int(binary_string[i2])])
+
+            for i3 in range(0, num_of_act_fce):
+                NN_config_list.append(bounds_high_low[i2* number_of_parameters_per_layer_glob + 1 + i3, int(binary_string[i2 + 1])])
+
+        for i2 in range(2*depth, number_of_variable_parameters):
+            NN_config_list.append(bounds_high_low[i2, int(binary_string[i2])])
+
+        datax_hidden_perf, datax_hidden_t_perf, datax_fce_perf, \
+        datax_fce_t_perf = transform_into_timeseries([NN_config_list, ])
+
+        params = np.random.uniform(-2, 2, max_depth_glob * number_of_parameters_per_layer_glob)
+        params = params.reshape((1, 1, dimension_of_hidden_layers))
+        encoded = predict_encoded(params, [datax_hidden_t_perf, datax_fce_t_perf])[0]
+        encoded_vector_list.append(encoded)
+        number_for_bin += 1
+
+    return encoded_vector_list
+
+
+def list_of_indexes_of_act_in_model(output_fce, depth):
+    act_index_list = []
+    for i in range(0,depth):
+        for i2 in range(0, num_of_act_fce):
+            if output_fce[0,i,i2] > 0.5:
+                act_index_list.append(i2)
+    return act_index_list

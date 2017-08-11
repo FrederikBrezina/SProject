@@ -8,7 +8,7 @@ import copy
 from scipy.stats import norm
 from scipy.optimize import minimize
 from encoder_gp_decoder.dense_loss import loss_nn_dense
-from encoder_gp_decoder.normal_RNN_gp import train_model, train_all_models, transform_into_timeseries, create_bounds
+from encoder_gp_decoder.normal_RNN_gp import train_model, train_all_models, transform_into_timeseries, predict_encoded
 import sys
 
 reverse_order = True
@@ -161,12 +161,13 @@ def bayesian_optimisation(x,y,x_test,y_test, act_fce, loss, optimizer, batch_siz
 
         decoded_sanitized = sanitize_next_sample_for_gp(decoder.predict(params2), n_of_act_fce + 1,
                                                         min_units, max_units, y.shape[1])
+
         datax_hidden_perf, datax_hidden_t_perf, datax_fce_perf, datax_fce_t_perf = transform_into_timeseries(
             [decoded_sanitized,])
 
-        #Adjust the encoded params to decoded_sanitized
-        encoded_data = encoder.predict([datax_hidden_perf, datax_fce_perf])
-        params = encoded_data[0]
+        #Centre the point
+        params3 = params.reshape((1,1,n_params))
+        params = predict_encoded(params3, [datax_hidden_perf, datax_fce_perf])[0]
 
         #If depth is smaller than allowed, re do the example
         if int(decoded_sanitized.shape[0]/2) < min_depth:
@@ -222,6 +223,11 @@ def bayesian_optimisation(x,y,x_test,y_test, act_fce, loss, optimizer, batch_siz
         #Decode and sanitize the example
         next_sample1 = next_sample.reshape((1, n_params))
         decoded_sanitized = sanitize_next_sample_for_gp(decoder.predict(next_sample1),n_of_act_fce + 1,min_units, max_units, y.shape[1])
+        datax_hidden_perf, datax_hidden_t_perf, datax_fce_perf, datax_fce_t_perf = transform_into_timeseries(
+            [decoded_sanitized, ])
+
+        params3 = next_sample.reshape((1, 1, n_params))
+        next_sample = predict_encoded(params3, [datax_hidden_perf, datax_fce_perf])[0]
 
         #If it satisfies the depth requirements, proceed to train it
         if int(decoded_sanitized.shape[0] / 2) >= min_depth:

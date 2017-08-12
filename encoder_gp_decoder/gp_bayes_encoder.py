@@ -8,7 +8,7 @@ import copy
 from scipy.stats import norm
 from scipy.optimize import minimize
 from encoder_gp_decoder.dense_loss import loss_nn_dense
-from encoder_gp_decoder.normal_RNN_gp import train_model, train_all_models, transform_into_timeseries, predict_encoded
+from encoder_gp_decoder.normal_RNN_gp import train_model, train_all_models, transform_into_timeseries, find_set_in_z_space
 import sys
 
 reverse_order = True
@@ -165,9 +165,7 @@ def bayesian_optimisation(x,y,x_test,y_test, act_fce, loss, optimizer, batch_siz
         datax_hidden_perf, datax_hidden_t_perf, datax_fce_perf, datax_fce_t_perf = transform_into_timeseries(
             [decoded_sanitized,])
 
-        #Centre the point
-        params3 = params.reshape((1,1,n_params))
-        params = predict_encoded(params3, [datax_hidden_perf, datax_fce_perf])[0]
+
 
         #If depth is smaller than allowed, re do the example
         if int(decoded_sanitized.shape[0]/2) < min_depth:
@@ -176,13 +174,15 @@ def bayesian_optimisation(x,y,x_test,y_test, act_fce, loss, optimizer, batch_siz
 
         decoded_sanitized_list.append(decoded_sanitized)
         #Train the configuration pn data
-        x_list.append(params)
+        f = find_set_in_z_space([datax_hidden_t_perf,datax_fce_t_perf])
+        x_list.extend(f)
         serialized_arch_list.append(seriliaze_next_sample_for_loss_fce(decoded_sanitized, n_of_act_fce + 1))
         performance_metrics = sample_loss(serialized_arch_list[-1], x, y, x_test, y_test, act_fce, loss,
                                   optimizer, batch_size)
 
         performance_metrics_list.append(performance_metrics)
-        y_list.append(performance_metrics[0])
+        for i in range(0,len(f)):
+            y_list.append(performance_metrics[0])
         number_of_examples += 1
 
     xp = np.array(x_list)
@@ -226,17 +226,20 @@ def bayesian_optimisation(x,y,x_test,y_test, act_fce, loss, optimizer, batch_siz
         datax_hidden_perf, datax_hidden_t_perf, datax_fce_perf, datax_fce_t_perf = transform_into_timeseries(
             [decoded_sanitized, ])
 
-        params3 = next_sample.reshape((1, 1, n_params))
-        next_sample = predict_encoded(params3, [datax_hidden_perf, datax_fce_perf])[0]
+
 
         #If it satisfies the depth requirements, proceed to train it
         if int(decoded_sanitized.shape[0] / 2) >= min_depth:
             serialized_arch_list.append(seriliaze_next_sample_for_loss_fce(decoded_sanitized, n_of_act_fce + 1))
+            f = find_set_in_z_space([datax_hidden_t_perf, datax_fce_t_perf])
+            x_list.extend(f)
             # Sample loss for new set of parameters
             cv_score = sample_loss(serialized_arch_list[-1], x, y, x_test, y_test, act_fce, loss, optimizer, batch_size)
             decoded_sanitized_list.append(decoded_sanitized)
             performance_metrics_list.append(cv_score)
             cv_score = cv_score[0]
+            for i in range(0,len(f)):
+                y_list.append(cv_score)
 
         #If it does not, do not train, but set the cv_score to very high
         else:

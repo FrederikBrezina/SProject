@@ -388,7 +388,7 @@ def predict_encoded(input,output):
 
     return local_model.predict(input)
 
-def possibilities(number, output):
+def possibilities(output):
     epsilon = 0.1 #For hidden unts as well categories
     epsilon2 = 0.05 #Depth hidden unit
     epsilon3 = 0.001
@@ -443,10 +443,10 @@ def possibilities(number, output):
 
     return bounds_high_high, bounds_high_low, act_index_list
 
-def find_set_in_z_space(number, output, probability):
+def find_set_in_z_space(output, probability):
     get_bin = lambda x, n: format(x, 'b').zfill(n)
     encoded_vector_list = []
-    bounds_high_high, bounds_high_low, act_index_list = possibilities(number, output)
+    bounds_high_high, bounds_high_low, act_index_list = possibilities(output)
     combination_number = 2 ** (bounds_high_high.shape[0])
     number_for_bin = 0
     depth = len(act_index_list)

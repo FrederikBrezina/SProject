@@ -49,11 +49,11 @@ def encoded_decoder(decoder, input1, local):
 
 def encoder_model(input1, input2):
     #TimeDistributed Dense layer, for each layer in NN config
-    layer = TimeDistributed(Dense(dimension_of_input1,  kernel_regularizer=regularizers.l2(0.01)))(input1)
-    layer2 = TimeDistributed(Dense(dimension_of_hidden_layers, kernel_regularizer=regularizers.l2(0.01)))(input2)
+    layer = TimeDistributed(Dense(dimension_of_input1,  kernel_regularizer=regularizers.l2(0.005)))(input1)
+    layer2 = TimeDistributed(Dense(dimension_of_hidden_layers, kernel_regularizer=regularizers.l2(0.005)))(input2)
     layer = concatenate([layer, layer2])
     #Apply the LSTM to each layer which passed thourgh dense first
-    layer = LSTM(dimension_of_hidden_layers, kernel_regularizer=regularizers.l2(0.01),
+    layer = LSTM(dimension_of_hidden_layers, kernel_regularizer=regularizers.l2(0.005),
                  return_sequences=False)(layer)
     #Generate encoded configuration and normalize it
     layer = BatchNormalization()(layer)
@@ -66,12 +66,12 @@ def model_for_decoder(input):
     #Repeat the context vector and feed it at every time step
     layer = RepeatVector(max_depth_glob)(input) # Get the last output of the GRU and repeats it
     #Return the sequence into time distributed dense network
-    output = LSTM(dimension_of_hidden_layers,  kernel_regularizer=regularizers.l2(0.01),
+    output = LSTM(dimension_of_hidden_layers,  kernel_regularizer=regularizers.l2(0.005),
                    return_sequences=True, name='lstm_output')(layer)
     #Last layer, Dense layer before the output prediction and reconstruction of the input
-    output1 = TimeDistributed(Dense(10, activation='selu', kernel_regularizer=regularizers.l2(0.01)))(output)
+    output1 = TimeDistributed(Dense(10, activation='selu', kernel_regularizer=regularizers.l2(0.005)))(output)
     output1 = TimeDistributed(Dense(1, activation='relu'), name="hidden_units")(output1)
-    output2 = TimeDistributed(Dense(number_of_parameters_per_layer_glob - 1, activation='sigmoid'), name="act_fce")(output)
+    output2 = TimeDistributed(Dense(number_of_parameters_per_layer_glob - 1, activation='softmax', activity_regularizer=regularizers.l1(0.01)), name="act_fce")(output)
     model = Model(inputs=input,outputs=[output1, output2])
     model.compile(loss={"hidden_units" : 'mse', "act_fce" : "categorical_crossentropy"}, optimizer='adam', metrics=[])
 

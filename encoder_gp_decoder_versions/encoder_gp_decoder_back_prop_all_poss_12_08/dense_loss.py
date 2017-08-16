@@ -26,7 +26,7 @@ def loss_nn_dense(args, x, y, x_test, y_test, act_fce, loss, optimizer, batch_si
     acc_his = MyCallbacks.AccHistoryEpochTest()
     early_stopping = EarlyStopping(monitor='val_loss', min_delta=0.001, patience=15, verbose=0, mode='min')
     #Batch_size is also set by user
-    model.fit(x, y, epochs=1, batch_size=batch_size, validation_data=(x_test, y_test),
+    model.fit(x, y, epochs=250, batch_size=batch_size, validation_data=(x_test, y_test),
               callbacks=[acc_his, early_stopping], shuffle=True)
 
     conv_epoch = hp.convergence_of_NN_val_loss(acc_his.losses_val_losses, 4)

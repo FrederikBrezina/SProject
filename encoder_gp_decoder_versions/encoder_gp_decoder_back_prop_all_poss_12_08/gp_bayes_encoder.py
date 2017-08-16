@@ -13,7 +13,7 @@ import sys
 
 reverse_order = True
 
-def expected_improvement(x, gaussian_process, loss_optimum, greater_is_better=False, n_params=1):
+def expected_improvement(x, gaussian_process, evaluated_loss, greater_is_better=False, n_params=1):
     """ expected_improvement
 
     Expected improvement acquisition function.
@@ -38,7 +38,10 @@ def expected_improvement(x, gaussian_process, loss_optimum, greater_is_better=Fa
 
     mu, sigma = gaussian_process.predict(x_to_predict, return_std=True)
 
-
+    if greater_is_better:
+        loss_optimum = np.max(evaluated_loss)
+    else:
+        loss_optimum = np.min(evaluated_loss)
 
     scaling_factor = (-1) ** (not greater_is_better)
 
@@ -78,20 +81,13 @@ def sample_next_hyperparameter(acquisition_func, gaussian_process, evaluated_los
     best_acquisition_value = 1
     n_params = bounds.shape[0]
     count = 0
-    loss_optimum = 0
-    if greater_is_better:
-        loss_optimum = np.max(evaluated_loss)
-    else:
-        loss_optimum = np.min(evaluated_loss)
-
     for starting_point in np.random.uniform(bounds[:, 0], bounds[:, 1], size=(n_restarts, n_params)):
-        print("count", count)
 
         res = minimize(fun=acquisition_func,
                        x0=starting_point.reshape(1, -1),
                        bounds=bounds,
                        method='L-BFGS-B',
-                       args=(gaussian_process, loss_optimum, greater_is_better, n_params))
+                       args=(gaussian_process, evaluated_loss, greater_is_better, n_params))
         if count==0:
             best_acquisition_value = res.fun
             best_x = res.x
@@ -141,7 +137,7 @@ def bayesian_optimisation(x,y,x_test,y_test, act_fce, loss, optimizer, batch_siz
     x_list = []
     serialized_arch_list = []
     y_list = []
-    decoded_sanitized_list, performance_metrics_list, NN_configs_total_list = [], [], []
+    decoded_sanitized_list, performance_metrics_list = [], []
     n_of_act_fce = len(act_fce)
     dimension_of_hidden_layers = max_depth * 5  #this is the dimension between encoder decoder, also the dimension in which GP is working on
     bounds = np.zeros((dimension_of_hidden_layers, 2))
@@ -152,7 +148,7 @@ def bayesian_optimisation(x,y,x_test,y_test, act_fce, loss, optimizer, batch_siz
 
     ##Train encoder decoder
     encoder, decoder, full_model = train_model(dimension_of_hidden_layers,n_of_act_fce, min_units, max_units,
-                                   min_depth, max_depth,10000, n_of_act_fce+1, reverse_order=reverse_order)
+                                   min_depth, max_depth,1000, n_of_act_fce+1, reverse_order=reverse_order)
 
     #Do initial search through the space
     number_of_examples = 0
@@ -172,15 +168,14 @@ def bayesian_optimisation(x,y,x_test,y_test, act_fce, loss, optimizer, batch_siz
 
 
         #If depth is smaller than allowed, re do the example
-        if decoded_sanitized[0] < 1:
+        if int(decoded_sanitized.shape[0]/2) < min_depth:
 
             continue
 
         decoded_sanitized_list.append(decoded_sanitized)
         #Train the configuration pn data
-        f, NN_configs_list = find_set_in_z_space([datax_hidden_t_perf,datax_fce_t_perf], 1, 10)
-        x_list.extend(f), NN_configs_total_list.extend(NN_configs_list)
-
+        f = find_set_in_z_space([datax_hidden_t_perf,datax_fce_t_perf], 1)
+        x_list.extend(f)
         serialized_arch_list.append(seriliaze_next_sample_for_loss_fce(decoded_sanitized, n_of_act_fce + 1))
         performance_metrics = sample_loss(serialized_arch_list[-1], x, y, x_test, y_test, act_fce, loss,
                                   optimizer, batch_size)
@@ -208,14 +203,13 @@ def bayesian_optimisation(x,y,x_test,y_test, act_fce, loss, optimizer, batch_siz
                                             normalize_y=True)
 
     #Now choose next architecture based on knowledge of past results
-    for n in range(0,n_iters):
+    for n in range(n_iters):
         if (n%retrain_model_rounds == 0):
-            x_list = retrain_encode_again(NN_configs_total_list,decoded_sanitized_list, performance_metrics_list, encoder)
+            x_list = retrain_encode_again(decoded_sanitized_list, performance_metrics_list, encoder)
             xp = np.array(x_list)
-        print("started fiting")
+
         #Fit, the results into gp
         model.fit(xp, yp)
-        print("done fitting")
 
         # Sample next hyperparameter
         next_sample = sample_next_hyperparameter(expected_improvement, model, yp,
@@ -232,14 +226,13 @@ def bayesian_optimisation(x,y,x_test,y_test, act_fce, loss, optimizer, batch_siz
         datax_hidden_perf, datax_hidden_t_perf, datax_fce_perf, datax_fce_t_perf = transform_into_timeseries(
             [decoded_sanitized, ])
 
-        #Find all possibilities
-        f, NN_configs_list = find_set_in_z_space([datax_hidden_t_perf, datax_fce_t_perf], 1, 10)
-        NN_configs_total_list.extend(NN_configs_list)
-        x_list.extend(f)
+
 
         #If it satisfies the depth requirements, proceed to train it
-        if decoded_sanitized[0] > 0:
+        if int(decoded_sanitized.shape[0] / 2) >= min_depth:
             serialized_arch_list.append(seriliaze_next_sample_for_loss_fce(decoded_sanitized, n_of_act_fce + 1))
+            f = find_set_in_z_space([datax_hidden_t_perf, datax_fce_t_perf],1)
+            x_list.extend(f)
             # Sample loss for new set of parameters
             cv_score = sample_loss(serialized_arch_list[-1], x, y, x_test, y_test, act_fce, loss, optimizer, batch_size)
             decoded_sanitized_list.append(decoded_sanitized)
@@ -252,14 +245,15 @@ def bayesian_optimisation(x,y,x_test,y_test, act_fce, loss, optimizer, batch_siz
         else:
             if non_sense:
                 cv_score = max(y_list)
-                for i in range(0, len(f)):
-                    y_list.append(cv_score)
             else:
                 cv_score = max(y_list) * 100
                 non_sense = True
-                for i in range(0, len(f)):
-                    y_list.append(cv_score)
 
+
+
+        # Update lists
+        x_list.append(next_sample)
+        y_list.append(cv_score)
 
         # Update xp and yp
         xp = np.array(x_list)
@@ -309,7 +303,7 @@ def sanitize_next_sample_for_gp(next_sample, number_of_parameters_per_layer, min
             temp = round(next_sample[0][0,i ,0])
 
             if (temp < 0.5) and (i==0):
-                return np.zeros((number_of_parameters_per_layer))
+                return np.zeros((1))
             #If it predicts less than 0.5 units than this means the NN config reached its depth
             elif temp < 0.5:
                 #Hardcode the dimension of output
@@ -337,22 +331,15 @@ def sanitize_next_sample_for_gp(next_sample, number_of_parameters_per_layer, min
 
     return seriliezed_next_sample
 
-def retrain_encode_again(NN_config_total_list,decoded_sanitized_list, performance_metrics_list, encoder):
+def retrain_encode_again(decoded_sanitized_list, performance_metrics_list, encoder):
+    encoded_sanitized_list_new = []
     train_all_models(decoded_sanitized_list, performance_metrics_list)
+    datax_hidden_perf, datax_hidden_t_perf, datax_fce_perf, datax_fce_t_perf = transform_into_timeseries(decoded_sanitized_list)
+    encoded_data = encoder.predict([datax_hidden_perf, datax_fce_perf])
 
-    batch_size = 10
-    number_of_configs = len(NN_config_total_list)
-    encoded_data_list = []
-    for i in range(0, int(number_of_configs/batch_size) + 1):
-        if i < int(number_of_configs/batch_size) + 1:
-            datax_hidden_perf, datax_hidden_t_perf, datax_fce_perf, datax_fce_t_perf = transform_into_timeseries(
-                NN_config_total_list[i*batch_size:(i+1)*batch_size])
-        else:
-            datax_hidden_perf, datax_hidden_t_perf, datax_fce_perf, datax_fce_t_perf = transform_into_timeseries(
-                NN_config_total_list[i*batch_size:number_of_configs])
-        encoded_data = encoder.predict([datax_hidden_perf, datax_fce_perf])
-        encoded_data_list.extend(encoded_data)
-    return encoded_data_list
+    for i in range(encoded_data.shape[0]):
+        encoded_sanitized_list_new.append(encoded_data[i])
+    return encoded_sanitized_list_new
 
 
 

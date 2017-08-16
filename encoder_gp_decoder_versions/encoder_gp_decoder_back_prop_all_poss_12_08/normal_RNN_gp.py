@@ -282,14 +282,9 @@ def transform_into_timeseries(datax):
         while bit_count < act_len_of_datax:
             datax_hidden_t_perf[i, steps, 0] = datax[i][bit_count]
             bit_count += 1
-            try:
-                for bits_per_layer in range(0, num_of_act_fce):
-                    datax_fce_t_perf[i, steps, bits_per_layer] = datax[i][bit_count]
-
-                    bit_count += 1
-            except (IndexError):
-                print(bit_count, act_len_of_datax)
-                sys.exit()
+            for bits_per_layer in range(0, num_of_act_fce):
+                datax_fce_t_perf[i, steps, bits_per_layer] = datax[i][bit_count]
+                bit_count += 1
             steps += 1
 
         #Transpose it, for reverse order
@@ -354,7 +349,7 @@ def train_model(dimension_of_decoder, num_of_act_fce1, min_units1, max_units1,mi
                                                                                       no_of_parameters_per_layer)
 
     #Train the encoder_decoder
-    for epoch in range(0,400):
+    for epoch in range(0,1):
         train_on_epoch(full_model, datax_hidden, datax_hidden_t, datax_fce, datax_fce_t, epoch, batch_size=10,
                        reverse_order=reverse_order)
 
@@ -377,24 +372,27 @@ def train_all_models(datax, datay):
                                                                                       num_of_act_fce,
                                                                                       number_of_parameters_per_layer_glob)
 
-    for epoch in range(0, 400):
+    for epoch in range(0, 150):
         train_on_epoch(encoder_decoder, datax_hidden, datax_hidden_t, datax_fce, datax_fce_t, epoch,
                        encoder_performance, datax_hidden_perf,
                        datax_hidden_t_perf, datax_fce_perf, datax_fce_t_perf,
                        datay_perf, batch_size=10, reverse_order=True)
 
-def predict_encoded(output):
-    return encoder_M.predict(output)
+def predict_encoded(input,output):
+    input1 = Input(shape=(1,dimension_of_hidden_layers))
+    local_model = local_connected(input1)
+    encoded_M = encoded_decoder(decoder_M,input1,local_model)
+    set_trainable(decoder_M, False), set_trainable(local_model, True)
+    for epoch in range(100):
+        encoded_M.train_on_batch(input,output)
+
+    return local_model.predict(input)
 
 def possibilities(output):
     epsilon = 0.1 #For hidden unts as well categories
     epsilon2 = 0.05 #Depth hidden unit
     epsilon3 = 0.001
-    #Find the depth
-    depth = 0
-    for i in range(0,max_depth_glob):
-        if output[0][0,i,0] > 0:
-            depth = i + 1
+    depth = output[0].shape[1]
     bounds_high_high = np.zeros((max_depth_glob*number_of_parameters_per_layer_glob, 2))
     bounds_high_low = np.zeros((max_depth_glob*number_of_parameters_per_layer_glob, 2))
     act_index_list = list_of_indexes_of_act_in_model(output[1], depth)
@@ -445,7 +443,7 @@ def possibilities(output):
 
     return bounds_high_high, bounds_high_low, act_index_list
 
-def find_set_in_z_space(output, probability, batch_size):
+def find_set_in_z_space(output, probability):
     get_bin = lambda x, n: format(x, 'b').zfill(n)
     encoded_vector_list = []
     bounds_high_high, bounds_high_low, act_index_list = possibilities(output)
@@ -453,9 +451,6 @@ def find_set_in_z_space(output, probability, batch_size):
     number_for_bin = 0
     depth = len(act_index_list)
 
-    NN_config_list_list = []
-    NN_config_total_list = []
-    config_list_length = 0
     while number_for_bin < combination_number:
         #Skip with 1 - probability
         if probability < np.random.uniform():
@@ -475,25 +470,19 @@ def find_set_in_z_space(output, probability, batch_size):
         for i2 in range(0, max_depth_glob*number_of_parameters_per_layer_glob):
             NN_config_list.append(bounds_high_high[i2,int(binary_string[i2])])
 
-        NN_config_list_list.append(NN_config_list)
+        datax_hidden_perf, datax_hidden_t_perf, datax_fce_perf,\
+        datax_fce_t_perf = transform_into_timeseries([NN_config_list,])
 
-        if (config_list_length == batch_size) or (number_for_bin - 1 == combination_number):
-            datax_hidden_perf, datax_hidden_t_perf, datax_fce_perf,\
-            datax_fce_t_perf = transform_into_timeseries(NN_config_list_list)
-
-            encoded = predict_encoded([datax_hidden_t_perf, datax_fce_t_perf])
-            encoded_vector_list.extend(encoded)
-            config_list_length = 0
-            NN_config_total_list.extend(NN_config_list_list)
-            NN_config_list_list = []
-        config_list_length += 1
+        params = np.random.uniform(-2, 2, dimension_of_hidden_layers)
+        params = params.reshape((1, 1, dimension_of_hidden_layers))
+        encoded = predict_encoded(params, [datax_hidden_t_perf, datax_fce_t_perf])[0]
+        encoded_vector_list.append(encoded)
         number_for_bin += 1
 
 
     number_of_variable_parameters = depth*2 + (max_depth_glob - depth)*number_of_parameters_per_layer_glob
     combination_number = 2 ** (number_of_variable_parameters)
     number_for_bin = 0
-
     while number_for_bin < combination_number:
         # Skip with 1 - probability
         if probability < np.random.uniform():
@@ -520,21 +509,16 @@ def find_set_in_z_space(output, probability, batch_size):
         for i2 in range(2*depth, number_of_variable_parameters):
             NN_config_list.append(bounds_high_low[i2, int(binary_string[i2])])
 
-        NN_config_list_list.append(NN_config_list)
+        datax_hidden_perf, datax_hidden_t_perf, datax_fce_perf, \
+        datax_fce_t_perf = transform_into_timeseries([NN_config_list, ])
 
-        if (config_list_length == batch_size) or (number_for_bin - 1 == combination_number):
-            datax_hidden_perf, datax_hidden_t_perf, datax_fce_perf, \
-            datax_fce_t_perf = transform_into_timeseries(NN_config_list_list)
-
-            encoded = predict_encoded([datax_hidden_t_perf, datax_fce_t_perf])
-            encoded_vector_list.extend(encoded)
-            config_list_length = 0
-            NN_config_total_list.extend(NN_config_list_list)
-            NN_config_list_list = []
-        config_list_length += 1
+        params = np.random.uniform(-2, 2, dimension_of_hidden_layers)
+        params = params.reshape((1, 1, dimension_of_hidden_layers))
+        encoded = predict_encoded(params, [datax_hidden_t_perf, datax_fce_t_perf])[0]
+        encoded_vector_list.append(encoded)
         number_for_bin += 1
 
-    return encoded_vector_list, NN_config_total_list
+    return encoded_vector_list
 
 
 def list_of_indexes_of_act_in_model(output_fce, depth):

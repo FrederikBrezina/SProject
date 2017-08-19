@@ -98,12 +98,6 @@ def encoder_performance_construct(input1, input2, encoder, decoder):
 
     return model
 
-def print_trainability(model):
-    count = 0
-    for layer in model.layers:
-        if count == 0:
-            print(layer.trainable)
-        count+=1
 
 def set_trainable(model, trainable=False):
     model.trainable = trainable
@@ -288,8 +282,7 @@ def transform_into_timeseries(datax):
 
                     bit_count += 1
             except (IndexError):
-                print(bit_count, act_len_of_datax)
-                sys.exit()
+                pass
             steps += 1
 
         #Transpose it, for reverse order
@@ -354,7 +347,7 @@ def train_model(dimension_of_decoder, num_of_act_fce1, min_units1, max_units1,mi
                                                                                       no_of_parameters_per_layer)
 
     #Train the encoder_decoder
-    for epoch in range(0,400):
+    for epoch in range(0,1):
         train_on_epoch(full_model, datax_hidden, datax_hidden_t, datax_fce, datax_fce_t, epoch, batch_size=10,
                        reverse_order=reverse_order)
 
@@ -377,7 +370,7 @@ def train_all_models(datax, datay):
                                                                                       num_of_act_fce,
                                                                                       number_of_parameters_per_layer_glob)
 
-    for epoch in range(0, 400):
+    for epoch in range(0, 1):
         train_on_epoch(encoder_decoder, datax_hidden, datax_hidden_t, datax_fce, datax_fce_t, epoch,
                        encoder_performance, datax_hidden_perf,
                        datax_hidden_t_perf, datax_fce_perf, datax_fce_t_perf,
@@ -387,13 +380,13 @@ def predict_encoded(output):
     return encoder_M.predict(output)
 
 def possibilities(output):
-    epsilon = 0.1 #For hidden unts as well categories
+    epsilon = 0.05 #For hidden unts as well categories
     epsilon2 = 0.05 #Depth hidden unit
     epsilon3 = 0.001
     #Find the depth
     depth = 0
     for i in range(0,max_depth_glob):
-        if output[0][0,i,0] > 0:
+        if output[0][0,i,0] > 0.5:
             depth = i + 1
     bounds_high_high = np.zeros((max_depth_glob*number_of_parameters_per_layer_glob, 2))
     bounds_high_low = np.zeros((max_depth_glob*number_of_parameters_per_layer_glob, 2))
@@ -405,43 +398,43 @@ def possibilities(output):
         bounds_high_low[i * number_of_parameters_per_layer_glob, 0] = output[0][0, i, 0] - 0.5 + epsilon
         bounds_high_low[i * number_of_parameters_per_layer_glob, 1] = output[0][0, i, 0] + 0.5 - epsilon
         for i2 in range(0, num_of_act_fce):
-            bounds_high_high[i * number_of_parameters_per_layer_glob + i2 + 1, 0] = 0
+            bounds_high_high[i * number_of_parameters_per_layer_glob + i2 + 1, 0] = 0 + epsilon
             bounds_high_high[i * number_of_parameters_per_layer_glob + i2+ 1, 1] = 1 - epsilon
             if i2 == act_index_list[i]:
-                bounds_high_high[i * number_of_parameters_per_layer_glob + i2 + 1, 0] = 1 - epsilon3
+                bounds_high_high[i * number_of_parameters_per_layer_glob + i2 + 1, 0] = 1
                 bounds_high_high[i * number_of_parameters_per_layer_glob + i2 + 1, 1] = 1
 
         for i2 in range(0, num_of_act_fce):
-            bounds_high_low[i * number_of_parameters_per_layer_glob+ i2 + 1, 0] = 0
-            bounds_high_low[i * number_of_parameters_per_layer_glob+ i2 + 1, 1] = 0
+            bounds_high_low[i * number_of_parameters_per_layer_glob+ i2 + 1, 0] = 0 + epsilon
+            bounds_high_low[i * number_of_parameters_per_layer_glob+ i2 + 1, 1] = 0 + epsilon
             if i2 == act_index_list[i]:
-                bounds_high_low[i * number_of_parameters_per_layer_glob + i2 + 1, 0] = 0 + epsilon
-                bounds_high_low[i * number_of_parameters_per_layer_glob + i2 + 1, 1] = 0 + epsilon
+                bounds_high_low[i * number_of_parameters_per_layer_glob + i2 + 1, 0] = 0 + 3*epsilon
+                bounds_high_low[i * number_of_parameters_per_layer_glob + i2 + 1, 1] = 0 + 3*epsilon
 
-    #depth - depth + 1 is another porblem as special
+    #depth - depth + 1 is another problem as special
     if depth < max_depth_glob:
-        bounds_high_high[depth * number_of_parameters_per_layer_glob, 0] = 0
+        bounds_high_high[depth * number_of_parameters_per_layer_glob, 0] = 0 + epsilon2
         bounds_high_high[depth * number_of_parameters_per_layer_glob, 1] = 0.5 - epsilon2
-        bounds_high_low[depth * number_of_parameters_per_layer_glob, 0] = 0
+        bounds_high_low[depth * number_of_parameters_per_layer_glob, 0] = 0 + epsilon2
         bounds_high_low[depth * number_of_parameters_per_layer_glob, 1] = 0.5 - epsilon2
         for i2 in range(0, num_of_act_fce):
-            bounds_high_high[depth * number_of_parameters_per_layer_glob + i2 + 1, 0] = 0
-            bounds_high_high[depth * number_of_parameters_per_layer_glob + i2 + 1, 1] = 1
-            bounds_high_low[depth * number_of_parameters_per_layer_glob + i2 + 1, 0] = 0
-            bounds_high_low[depth * number_of_parameters_per_layer_glob + i2 + 1, 1] = 1
+            bounds_high_high[depth * number_of_parameters_per_layer_glob + i2 + 1, 0] = 0 + epsilon
+            bounds_high_high[depth * number_of_parameters_per_layer_glob + i2 + 1, 1] = 1 - epsilon
+            bounds_high_low[depth * number_of_parameters_per_layer_glob + i2 + 1, 0] = 0 + epsilon
+            bounds_high_low[depth * number_of_parameters_per_layer_glob + i2 + 1, 1] = 1 - epsilon
 
     #Last case depth+1 : max_depth
     if depth + 1< max_depth_glob:
         for i in range(depth + 1, max_depth_glob):
-            bounds_high_high[i * number_of_parameters_per_layer_glob, 0] = 0
-            bounds_high_high[i * number_of_parameters_per_layer_glob, 1] = max_units
-            bounds_high_low[i * number_of_parameters_per_layer_glob, 0] = 0
-            bounds_high_low[i * number_of_parameters_per_layer_glob, 1] = max_units
+            bounds_high_high[i * number_of_parameters_per_layer_glob, 0] = 0 + epsilon
+            bounds_high_high[i * number_of_parameters_per_layer_glob, 1] = max_units - epsilon
+            bounds_high_low[i * number_of_parameters_per_layer_glob, 0] = 0 + epsilon
+            bounds_high_low[i * number_of_parameters_per_layer_glob, 1] = max_units - epsilon
             for i2 in range(0, num_of_act_fce):
-                bounds_high_high[i * number_of_parameters_per_layer_glob + i2 + 1, 0] = 0
-                bounds_high_high[i * number_of_parameters_per_layer_glob + i2 + 1, 1] = 1
-                bounds_high_low[i * number_of_parameters_per_layer_glob + i2 + 1, 0] = 0
-                bounds_high_low[i * number_of_parameters_per_layer_glob + i2 + 1, 1] = 1
+                bounds_high_high[i * number_of_parameters_per_layer_glob + i2 + 1, 0] = 0 + epsilon
+                bounds_high_high[i * number_of_parameters_per_layer_glob + i2 + 1, 1] = 1 - epsilon
+                bounds_high_low[i * number_of_parameters_per_layer_glob + i2 + 1, 0] = 0 + epsilon
+                bounds_high_low[i * number_of_parameters_per_layer_glob + i2 + 1, 1] = 1 - epsilon
 
     return bounds_high_high, bounds_high_low, act_index_list
 
@@ -459,7 +452,7 @@ def find_set_in_z_space(output, probability, batch_size):
     while number_for_bin < combination_number:
         #Skip with 1 - probability
         if probability < np.random.uniform():
-            number_for_bin + 1
+            number_for_bin += 1
             continue
 
         NN_config_list = []
@@ -471,6 +464,7 @@ def find_set_in_z_space(output, probability, batch_size):
                 flag = True
                 break
         if flag:
+
             continue
         for i2 in range(0, max_depth_glob*number_of_parameters_per_layer_glob):
             NN_config_list.append(bounds_high_high[i2,int(binary_string[i2])])
@@ -490,34 +484,39 @@ def find_set_in_z_space(output, probability, batch_size):
         number_for_bin += 1
 
 
-    number_of_variable_parameters = depth*2 + (max_depth_glob - depth)*number_of_parameters_per_layer_glob
+    number_of_variable_parameters = depth + (max_depth_glob - depth)*number_of_parameters_per_layer_glob
     combination_number = 2 ** (number_of_variable_parameters)
+    number_for_bin_tot = 0
+    number_for_bin_tot += number_for_bin
     number_for_bin = 0
 
     while number_for_bin < combination_number:
         # Skip with 1 - probability
         if probability < np.random.uniform():
-            number_for_bin + 1
+            number_for_bin += 1
             continue
 
         NN_config_list = []
         binary_string = get_bin(number_for_bin, number_of_variable_parameters)
         flag = False
-        for i in range(0, depth):
-            if binary_string[i * 2 + 1] == '1':
-                number_for_bin += 2 ** ((number_of_variable_parameters - 1) - (i * 2 + 1))
+        if depth < max_depth_glob:
+            if binary_string[depth] == '1':
+                number_for_bin += 2 ** ((number_of_variable_parameters - 1) - (depth))
                 flag = True
                 break
+
         if flag:
+
             continue
+
         for i2 in range(0, depth):
 
             NN_config_list.append(bounds_high_low[i2* number_of_parameters_per_layer_glob, int(binary_string[i2])])
 
             for i3 in range(0, num_of_act_fce):
-                NN_config_list.append(bounds_high_low[i2* number_of_parameters_per_layer_glob + 1 + i3, int(binary_string[i2 + 1])])
+                NN_config_list.append(bounds_high_low[i2* number_of_parameters_per_layer_glob + 1 + i3, 0])
 
-        for i2 in range(2*depth, number_of_variable_parameters):
+        for i2 in range(depth, number_of_variable_parameters):
             NN_config_list.append(bounds_high_low[i2, int(binary_string[i2])])
 
         NN_config_list_list.append(NN_config_list)
@@ -533,6 +532,8 @@ def find_set_in_z_space(output, probability, batch_size):
             NN_config_list_list = []
         config_list_length += 1
         number_for_bin += 1
+
+    number_for_bin_tot += number_for_bin
 
     return encoded_vector_list, NN_config_total_list
 

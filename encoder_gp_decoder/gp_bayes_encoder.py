@@ -52,7 +52,7 @@ def expected_improvement(x, gaussian_process, loss_optimum, greater_is_better=Fa
 
 
 def sample_next_hyperparameter(acquisition_func, gaussian_process, evaluated_loss, greater_is_better=False,
-                               bounds=(0, 10), n_restarts=100):
+                               bounds=None, n_restarts=30, not_follow_bounds = True):
     """ sample_next_hyperparameter
 
     Proposes the next hyperparameter to sample the loss function for.
@@ -84,13 +84,24 @@ def sample_next_hyperparameter(acquisition_func, gaussian_process, evaluated_los
     else:
         loss_optimum = np.min(evaluated_loss)
 
+    methods = ['L-BFGS-B', 'BFGS']
+    if not_follow_bounds == True:
+        method = methods[1]
+        bounds_temp = None
+    else:
+        method = methods[0]
+        bounds_temp = bounds
+
+
+
     for starting_point in np.random.uniform(bounds[:, 0], bounds[:, 1], size=(n_restarts, n_params)):
-        print("count", count)
+        print(count)
+
 
         res = minimize(fun=acquisition_func,
                        x0=starting_point.reshape(1, -1),
-                       bounds=bounds,
-                       method='L-BFGS-B',
+                       bounds=bounds_temp,
+                       method=method,
                        args=(gaussian_process, loss_optimum, greater_is_better, n_params))
         if count==0:
             best_acquisition_value = res.fun
@@ -152,7 +163,7 @@ def bayesian_optimisation(x,y,x_test,y_test, act_fce, loss, optimizer, batch_siz
 
     ##Train encoder decoder
     encoder, decoder, full_model = train_model(dimension_of_hidden_layers,n_of_act_fce, min_units, max_units,
-                                   min_depth, max_depth,10000, n_of_act_fce+1, reverse_order=reverse_order)
+                                   min_depth, max_depth,1000, n_of_act_fce+1, reverse_order=reverse_order)
 
     #Do initial search through the space
     number_of_examples = 0
@@ -169,8 +180,6 @@ def bayesian_optimisation(x,y,x_test,y_test, act_fce, loss, optimizer, batch_siz
         datax_hidden_perf, datax_hidden_t_perf, datax_fce_perf, datax_fce_t_perf = transform_into_timeseries(
             [decoded_sanitized,])
 
-
-
         #If depth is smaller than allowed, re do the example
         if decoded_sanitized[0] < 1:
 
@@ -178,7 +187,7 @@ def bayesian_optimisation(x,y,x_test,y_test, act_fce, loss, optimizer, batch_siz
 
         decoded_sanitized_list.append(decoded_sanitized)
         #Train the configuration pn data
-        f, NN_configs_list = find_set_in_z_space([datax_hidden_t_perf,datax_fce_t_perf], 1, 10)
+        f, NN_configs_list = find_set_in_z_space([datax_hidden_t_perf,datax_fce_t_perf], 0.01, 10)
         x_list.extend(f), NN_configs_total_list.extend(NN_configs_list)
 
         serialized_arch_list.append(seriliaze_next_sample_for_loss_fce(decoded_sanitized, n_of_act_fce + 1))
@@ -206,20 +215,22 @@ def bayesian_optimisation(x,y,x_test,y_test, act_fce, loss, optimizer, batch_siz
                                             alpha=alpha,
                                             n_restarts_optimizer=10,
                                             normalize_y=True)
-
+    print(len(x_list))
     #Now choose next architecture based on knowledge of past results
     for n in range(0,n_iters):
         if (n%retrain_model_rounds == 0):
             x_list = retrain_encode_again(NN_configs_total_list,decoded_sanitized_list, performance_metrics_list, encoder)
             xp = np.array(x_list)
-        print("started fiting")
+
+
         #Fit, the results into gp
         model.fit(xp, yp)
-        print("done fitting")
+
+
 
         # Sample next hyperparameter
         next_sample = sample_next_hyperparameter(expected_improvement, model, yp,
-                                                     greater_is_better=False, bounds=bounds, n_restarts=100)
+                                                     greater_is_better=False, bounds=bounds, n_restarts=100, not_follow_bounds=True)
 
 
         # Duplicates will break the GP. In case of a duplicate, we will randomly sample a next query point.
@@ -233,7 +244,7 @@ def bayesian_optimisation(x,y,x_test,y_test, act_fce, loss, optimizer, batch_siz
             [decoded_sanitized, ])
 
         #Find all possibilities
-        f, NN_configs_list = find_set_in_z_space([datax_hidden_t_perf, datax_fce_t_perf], 1, 10)
+        f, NN_configs_list = find_set_in_z_space([datax_hidden_t_perf, datax_fce_t_perf], 0.1, 10)
         NN_configs_total_list.extend(NN_configs_list)
         x_list.extend(f)
 

@@ -151,7 +151,7 @@ def train_on_epoch(model2, x_h, x_h_t , x_fce, x_fce_t, epoch, model = None, dat
             #Train only encoder
             cur_line = futur_line
         elif (cur_line<len_of_data):
-            sys.exit()
+
             set_trainable(encoder_M, False), set_trainable(decoder_M, True)
             model2_loss.append(model2.train_on_batch([x_h[cur_line:(len_of_data)], x_fce[cur_line:(len_of_data)]],
                                                      [x_h_2[cur_line:(len_of_data)], x_fce_2[cur_line:(len_of_data)]]))

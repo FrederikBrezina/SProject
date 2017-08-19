@@ -347,7 +347,7 @@ def train_model(dimension_of_decoder, num_of_act_fce1, min_units1, max_units1,mi
                                                                                       no_of_parameters_per_layer)
 
     #Train the encoder_decoder
-    for epoch in range(0,1):
+    for epoch in range(0,400):
         train_on_epoch(full_model, datax_hidden, datax_hidden_t, datax_fce, datax_fce_t, epoch, batch_size=10,
                        reverse_order=reverse_order)
 
@@ -370,7 +370,7 @@ def train_all_models(datax, datay):
                                                                                       num_of_act_fce,
                                                                                       number_of_parameters_per_layer_glob)
 
-    for epoch in range(0, 1):
+    for epoch in range(0, 400):
         train_on_epoch(encoder_decoder, datax_hidden, datax_hidden_t, datax_fce, datax_fce_t, epoch,
                        encoder_performance, datax_hidden_perf,
                        datax_hidden_t_perf, datax_fce_perf, datax_fce_t_perf,
@@ -390,6 +390,8 @@ def possibilities(output):
             depth = i + 1
     bounds_high_high = np.zeros((max_depth_glob*number_of_parameters_per_layer_glob, 2))
     bounds_high_low = np.zeros((max_depth_glob*number_of_parameters_per_layer_glob, 2))
+    bounds_average_high = np.zeros((max_depth_glob * number_of_parameters_per_layer_glob))
+    bounds_average_low = np.zeros((max_depth_glob * number_of_parameters_per_layer_glob))
     act_index_list = list_of_indexes_of_act_in_model(output[1], depth)
     #0-depth are same class problem
     for i in range(0,depth):
@@ -436,12 +438,16 @@ def possibilities(output):
                 bounds_high_low[i * number_of_parameters_per_layer_glob + i2 + 1, 0] = 0 + epsilon
                 bounds_high_low[i * number_of_parameters_per_layer_glob + i2 + 1, 1] = 1 - epsilon
 
-    return bounds_high_high, bounds_high_low, act_index_list
+    for i in range(0, number_of_parameters_per_layer_glob* max_depth_glob):
+        bounds_average_high[i] = (bounds_high_high[i,0] + bounds_high_high[i,1])/2
+        bounds_average_low[i] = (bounds_high_low[i, 0] + bounds_high_low[i, 1]) / 2
+
+    return bounds_high_high, bounds_high_low, act_index_list, bounds_average_high, bounds_average_low
 
 def find_set_in_z_space(output, probability, batch_size):
     get_bin = lambda x, n: format(x, 'b').zfill(n)
     encoded_vector_list = []
-    bounds_high_high, bounds_high_low, act_index_list = possibilities(output)
+    bounds_high_high, bounds_high_low, act_index_list, bounds_average_high, bounds_average_low = possibilities(output)
     combination_number = 2 ** (bounds_high_high.shape[0])
     number_for_bin = 0
     depth = len(act_index_list)

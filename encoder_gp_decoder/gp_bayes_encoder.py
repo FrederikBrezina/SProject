@@ -163,7 +163,7 @@ def bayesian_optimisation(x,y,x_test,y_test, act_fce, loss, optimizer, batch_siz
 
     ##Train encoder decoder
     encoder, decoder, full_model = train_model(dimension_of_hidden_layers,n_of_act_fce, min_units, max_units,
-                                   min_depth, max_depth,1000, n_of_act_fce+1, reverse_order=reverse_order)
+                                   min_depth, max_depth,10000, n_of_act_fce+1, reverse_order=reverse_order)
 
     #Do initial search through the space
     number_of_examples = 0
@@ -187,7 +187,7 @@ def bayesian_optimisation(x,y,x_test,y_test, act_fce, loss, optimizer, batch_siz
 
         decoded_sanitized_list.append(decoded_sanitized)
         #Train the configuration pn data
-        f, NN_configs_list = find_set_in_z_space([datax_hidden_t_perf,datax_fce_t_perf], 0.01, 10)
+        f, NN_configs_list = find_set_in_z_space([datax_hidden_t_perf,datax_fce_t_perf], 1, 10)
         x_list.extend(f), NN_configs_total_list.extend(NN_configs_list)
 
         serialized_arch_list.append(seriliaze_next_sample_for_loss_fce(decoded_sanitized, n_of_act_fce + 1))

@@ -49,14 +49,13 @@ def encoded_decoder(decoder, input1, local):
 
 def encoder_model(input1, input2):
     #TimeDistributed Dense layer, for each layer in NN config
-    layer = TimeDistributed(Dense(dimension_of_input1,  kernel_regularizer=regularizers.l2(0.005)))(input1)
-    layer2 = TimeDistributed(Dense(dimension_of_hidden_layers, kernel_regularizer=regularizers.l2(0.005)))(input2)
+    layer = TimeDistributed(Dense(dimension_of_input1,  kernel_regularizer=regularizers.l2(0.005), activation='tanh'))(input1)
+    layer2 = TimeDistributed(Dense(dimension_of_hidden_layers, kernel_regularizer=regularizers.l2(0.005), activation='tanh'))(input2)
     layer = concatenate([layer, layer2])
     #Apply the LSTM to each layer which passed thourgh dense first
     layer = LSTM(dimension_of_hidden_layers, kernel_regularizer=regularizers.l2(0.005),
-                 return_sequences=False)(layer)
+                 return_sequences=False, activation='tanh')(layer)
     #Generate encoded configuration and normalize it
-    layer = BatchNormalization()(layer)
     model = Model(inputs=[input1, input2], outputs=layer)
     model.compile(loss='mse', optimizer='adam', metrics=[])
 

@@ -138,8 +138,8 @@ for i in range(0,10):
 #     pretrain_on_epoch(model_for_decode,x,y,dict,1)
 #     print('####################################',model_for_decode.test_on_batch(x_test, x_test ))
 g_list = []
-for epoch in range(0,10):
-    train_on_epoch(model_to_eval, model_for_decode, x, y,dict, 1)
+for epoch in range(0,100):
+    train_on_epoch(model_to_eval, model_for_decode, x, y,dict, 5)
     g_list.append(model_for_decode.test_on_batch(x_test, x_test))
     print('####################################', g_list[-1])
 
@@ -147,8 +147,14 @@ for epoch in range(0,10):
 print(base_m.predict(x_test))
 f = np.round(model_for_decode.predict(x_test))
 f = model_to_eval.predict(f)
-for i in range(0,test_samples):
-    print(find_index(Y[:, 0], y_test[i, 0]))
-    print(find_index(Y[:,0],f[i,0]))
+sum = 0
+for i in range(0,test_samples - 1):
+    j = find_index(Y[:, 0], y_test[i, 0])
+    print(j)
+    ji = find_index(Y[:,0],f[i,0])
+    print(ji)
+    sum += abs(j - ji)
     print('######################')
+print(sum)
+
 

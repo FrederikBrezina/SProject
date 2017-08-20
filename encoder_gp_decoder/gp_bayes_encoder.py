@@ -10,6 +10,7 @@ from scipy.optimize import minimize
 from encoder_gp_decoder.dense_loss import loss_nn_dense
 from encoder_gp_decoder.normal_RNN_gp import train_model, train_all_models, transform_into_timeseries, find_set_in_z_space
 import sys
+import time
 
 reverse_order = True
 
@@ -34,7 +35,10 @@ def expected_improvement(x, gaussian_process, loss_optimum, greater_is_better=Fa
 
     """
 
+    time_now = time.time()
     x_to_predict = x.reshape(-1, n_params)
+    time_later = time.time()
+    print("gauss_prediction",time_later - time_now)
 
     mu, sigma = gaussian_process.predict(x_to_predict, return_std=True)
 
@@ -47,7 +51,8 @@ def expected_improvement(x, gaussian_process, loss_optimum, greater_is_better=Fa
         Z = scaling_factor * (mu - loss_optimum) / sigma
         expected_improvement = scaling_factor * (mu - loss_optimum) * norm.cdf(Z) + sigma * norm.pdf(Z)
         expected_improvement[sigma == 0.0] = 0.0
-
+    time_later_later = time.time()
+    print("gauss_prediction_2", time_later_later - time_later)
     return -1 * expected_improvement
 
 
@@ -97,12 +102,17 @@ def sample_next_hyperparameter(acquisition_func, gaussian_process, evaluated_los
     for starting_point in np.random.uniform(bounds[:, 0], bounds[:, 1], size=(n_restarts, n_params)):
         print(count)
 
+        time_now = time.time()
 
         res = minimize(fun=acquisition_func,
                        x0=starting_point.reshape(1, -1),
                        bounds=bounds_temp,
                        method=method,
                        args=(gaussian_process, loss_optimum, greater_is_better, n_params))
+
+        time_later = time.time()
+        print("minimization", time_later - time_now)
+
         if count==0:
             best_acquisition_value = res.fun
             best_x = res.x
@@ -156,8 +166,8 @@ def bayesian_optimisation(x,y,x_test,y_test, act_fce, loss, optimizer, batch_siz
     n_of_act_fce = len(act_fce)
     dimension_of_hidden_layers = max_depth * 5  #this is the dimension between encoder decoder, also the dimension in which GP is working on
     bounds = np.zeros((dimension_of_hidden_layers, 2))
-    bounds[:, 0] = -2
-    bounds[:, 1] = 2
+    bounds[:, 0] = -1
+    bounds[:, 1] = 1
     n_params = bounds.shape[0]
     non_sense = False
 
@@ -230,7 +240,7 @@ def bayesian_optimisation(x,y,x_test,y_test, act_fce, loss, optimizer, batch_siz
 
         # Sample next hyperparameter
         next_sample = sample_next_hyperparameter(expected_improvement, model, yp,
-                                                     greater_is_better=False, bounds=bounds, n_restarts=100, not_follow_bounds=True)
+                                                     greater_is_better=False, bounds=bounds, n_restarts=100, not_follow_bounds=False)
 
 
         # Duplicates will break the GP. In case of a duplicate, we will randomly sample a next query point.

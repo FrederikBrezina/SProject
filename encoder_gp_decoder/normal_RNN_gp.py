@@ -49,8 +49,8 @@ def encoded_decoder(decoder, input1, local):
 
 def encoder_model(input1, input2):
     #TimeDistributed Dense layer, for each layer in NN config
-    layer = TimeDistributed(Dense(dimension_of_input1,  kernel_regularizer=regularizers.l2(0.005), activation='tanh'))(input1)
-    layer2 = TimeDistributed(Dense(dimension_of_hidden_layers, kernel_regularizer=regularizers.l2(0.005), activation='tanh'))(input2)
+    layer = TimeDistributed(Dense(dimension_of_input1,  kernel_regularizer=regularizers.l2(0.005), activation='relu'))(input1)
+    layer2 = TimeDistributed(Dense(dimension_of_hidden_layers, kernel_regularizer=regularizers.l2(0.005), activation='relu'))(input2)
     layer = concatenate([layer, layer2])
     #Apply the LSTM to each layer which passed thourgh dense first
     layer = LSTM(dimension_of_hidden_layers, kernel_regularizer=regularizers.l2(0.005),
@@ -346,7 +346,7 @@ def train_model(dimension_of_decoder, num_of_act_fce1, min_units1, max_units1,mi
                                                                                       no_of_parameters_per_layer)
 
     #Train the encoder_decoder
-    for epoch in range(0,400):
+    for epoch in range(0,100):
         train_on_epoch(full_model, datax_hidden, datax_hidden_t, datax_fce, datax_fce_t, epoch, batch_size=10,
                        reverse_order=reverse_order)
 
@@ -369,7 +369,7 @@ def train_all_models(datax, datay):
                                                                                       num_of_act_fce,
                                                                                       number_of_parameters_per_layer_glob)
 
-    for epoch in range(0, 400):
+    for epoch in range(0, 100):
         train_on_epoch(encoder_decoder, datax_hidden, datax_hidden_t, datax_fce, datax_fce_t, epoch,
                        encoder_performance, datax_hidden_perf,
                        datax_hidden_t_perf, datax_fce_perf, datax_fce_t_perf,

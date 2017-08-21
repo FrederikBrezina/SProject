@@ -200,9 +200,7 @@ def bayesian_optimisation(x,y,x_test,y_test, act_fce, loss, optimizer, batch_siz
         #Train the configuration pn data
         f, NN_configs_list = find_set_in_z_space([datax_hidden_t_perf,datax_fce_t_perf], 0.1, 10)
         x_list.extend(f), NN_configs_total_list.extend(NN_configs_list)
-        print(len(NN_configs_list))
-        print(len(f))
-        sys.exit()
+
 
         serialized_arch_list.append(seriliaze_next_sample_for_loss_fce(decoded_sanitized, n_of_act_fce + 1))
         performance_metrics = sample_loss(serialized_arch_list[-1], x, y, x_test, y_test, act_fce, loss,

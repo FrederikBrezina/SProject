@@ -164,12 +164,13 @@ def bayesian_optimisation(x,y,x_test,y_test, act_fce, loss, optimizer, batch_siz
     y_list = []
     decoded_sanitized_list, performance_metrics_list, NN_configs_total_list = [], [], []
     n_of_act_fce = len(act_fce)
-    dimension_of_hidden_layers = max_depth * 5  #this is the dimension between encoder decoder, also the dimension in which GP is working on
+    dimension_of_hidden_layers = 8  #this is the dimension between encoder decoder, also the dimension in which GP is working on
     bounds = np.zeros((dimension_of_hidden_layers, 2))
     bounds[:, 0] = -1
     bounds[:, 1] = 1
     n_params = bounds.shape[0]
     non_sense = False
+    yp_list = []
 
     ##Train encoder decoder
     encoder, decoder, full_model = train_model(dimension_of_hidden_layers,n_of_act_fce, min_units, max_units,
@@ -205,6 +206,7 @@ def bayesian_optimisation(x,y,x_test,y_test, act_fce, loss, optimizer, batch_siz
                                   optimizer, batch_size)
 
         performance_metrics_list.append(performance_metrics)
+        yp_list.append(performance_metrics[0])
         for i in range(0,len(f)):
             y_list.append(performance_metrics[0])
         number_of_examples += 1
@@ -266,6 +268,7 @@ def bayesian_optimisation(x,y,x_test,y_test, act_fce, loss, optimizer, batch_siz
             decoded_sanitized_list.append(decoded_sanitized)
             performance_metrics_list.append(cv_score)
             cv_score = cv_score[0]
+            yp_list.append(cv_score)
             for i in range(0,len(f)):
                 y_list.append(cv_score)
 
@@ -287,7 +290,7 @@ def bayesian_optimisation(x,y,x_test,y_test, act_fce, loss, optimizer, batch_siz
         yp = np.array(y_list)
 
     #Return the array in form (no_units, index_of_act, no_units....) and return their losses
-    return serialized_arch_list, yp
+    return serialized_arch_list, yp_list
 
 
 

@@ -174,7 +174,7 @@ def bayesian_optimisation(x,y,x_test,y_test, act_fce, loss, optimizer, batch_siz
 
     ##Train encoder decoder
     encoder, decoder, full_model = train_model(dimension_of_hidden_layers,n_of_act_fce, min_units, max_units,
-                                   min_depth, max_depth,100, n_of_act_fce+1, reverse_order=reverse_order)
+                                   min_depth, max_depth,10000, n_of_act_fce+1, reverse_order=reverse_order)
 
     #Do initial search through the space
     number_of_examples = 0
@@ -367,6 +367,7 @@ def retrain_encode_again(NN_config_total_list,decoded_sanitized_list, performanc
 
     batch_size = 10
     number_of_configs = len(NN_config_total_list)
+    print(number_of_configs)
     encoded_data_list = []
     for i in range(0, int(number_of_configs/batch_size) + 1):
         if i < int(number_of_configs/batch_size) + 1:

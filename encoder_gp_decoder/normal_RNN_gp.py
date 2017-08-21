@@ -456,9 +456,12 @@ def find_set_in_z_space(output, probability, batch_size):
     config_list_length = 0
     while number_for_bin < combination_number:
         #Skip with 1 - probability
-        if probability < np.random.uniform():
-            number_for_bin += 1
-            continue
+        if probability < np.random.uniform() and number_for_bin + 1 < combination_number:
+            if len(NN_config_list_list) > 0 or len(NN_config_total_list) > 0:
+                number_for_bin += 1
+                continue
+            else:
+                pass
 
         NN_config_list = []
         binary_string = get_bin(number_for_bin, number_of_parameters_per_layer_glob*max_depth_glob)

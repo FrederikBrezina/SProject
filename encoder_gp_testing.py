@@ -270,12 +270,16 @@ def train_model(dimension_of_decoder, num_of_act_fce1, min_units1, max_units1, m
     yp = np.array(data2[:1000])
     model.fit(xp,yp)
     running_sum = 0
+    running_sum_list = []
     for i in range(0, datax_hidden_test.shape[0]):
         to_pred  = np.array(encoded_data_test[i])
         mu, sigma = model.predict(to_pred.reshape(-1, 8))
         running_sum = abs(mu - data2[1000 + i])
+        running_sum_list.append([running_sum, mu, data2[1000 + i]])
     avg = running_sum / datax_hidden_test.shape[0]
-    print(avg)
+    running_sum_list.append([avg, 0, 0])
+    running_sum_list = np.array(running_sum_list)
+    np.savetxt("error_list.txt", running_sum_list)
 
 def create_bounds(num_of_act_fce, min_units, max_units, depth, max_depth):
     #Creates the bounds for random data which trains the model above

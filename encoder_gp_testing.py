@@ -260,7 +260,7 @@ def train_model(dimension_of_decoder, num_of_act_fce1, min_units1, max_units1, m
 
     encoded_data_test = encoder_M.predict([datax_hidden_test, datax_fce_test])
     encoded_data = encoder_M.predict([datax_hidden, datax_fce])
-    kernel = gp.kernels.Matern(length_scale=0.25, length_scale_bounds=[0, 1])
+    kernel = gp.kernels.Matern(length_scale=0.25)
     alpha = 1e-5
     model = gp.GaussianProcessRegressor(kernel=kernel,
                                         alpha=alpha,

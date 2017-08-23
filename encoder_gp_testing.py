@@ -248,7 +248,7 @@ def train_model(dimension_of_decoder, num_of_act_fce1, min_units1, max_units1, m
     datax_fce, datax_fce_test, datax_fce_t, datax_fce_t_test = data1[0][0:1000], data1[0][1000:], data1[1][0:1000],\
                                                            data1[1][1000:], data1[2][0:1000], data1[2][1000:], data1[3][0:1000], data1[3][1000:]
 
-    datax_hidden2, datax_hidden_t2, datax_fce2, datax_fce_t2 = create_first_training_data(no_of_training_data, min_units,
+    datax_hidden2, datax_hidden_t2, datax_fce2, datax_fce_t2 = create_first_training_data(10000, min_units,
                                                                                       max_units,
                                                                                       min_depth, max_depth,
                                                                                       num_of_act_fce,

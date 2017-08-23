@@ -1,7 +1,6 @@
 from keras.callbacks import Callback
 import numpy as np
 import HelpFunctions as hp
-import HelpFunctionsThreading as hpt
 import HelpFunctionsGPU as hpgpu
 
 class MultiModelLosses(Callback):

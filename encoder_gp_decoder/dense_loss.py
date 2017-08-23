@@ -24,7 +24,7 @@ def loss_nn_dense(args, x, y, x_test, y_test, act_fce, loss, optimizer, batch_si
     #Loss and optimizer is set by user
     model.compile(loss=loss, optimizer=optimizer, metrics=['accuracy'])
     acc_his = MyCallbacks.AccHistoryEpochTest()
-    early_stopping = EarlyStopping(monitor='val_loss', min_delta=0.0001, patience=25, verbose=0, mode='min')
+    early_stopping = EarlyStopping(monitor='val_loss', min_delta=0.0001, patience=40, verbose=0, mode='min')
     #Batch_size is also set by user
     model.fit(x, y, epochs=250, batch_size=batch_size, validation_data=(x_test, y_test),
               callbacks=[acc_his, early_stopping], shuffle=True)

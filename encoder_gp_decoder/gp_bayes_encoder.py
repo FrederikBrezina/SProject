@@ -4,13 +4,11 @@ Bayesian optimisation of loss functions.
 
 import numpy as np
 import sklearn.gaussian_process as gp
-import copy
 from scipy.stats import norm
 from scipy.optimize import minimize
 from encoder_gp_decoder.dense_loss import loss_nn_dense
-from encoder_gp_decoder.normal_RNN_gp import train_model, train_all_models, transform_into_timeseries, find_set_in_z_space
-import sys
-import time
+from encoder_gp_decoder.normal_RNN_gp import train_model, train_all_models, transform_into_timeseries
+
 
 reverse_order = True
 
@@ -35,10 +33,10 @@ def expected_improvement(x, gaussian_process, loss_optimum, greater_is_better=Fa
 
     """
 
-    time_now = time.time()
+
     x_to_predict = x.reshape(-1, n_params)
-    time_later = time.time()
-    print("gauss_prediction",time_later - time_now)
+
+
 
     mu, sigma = gaussian_process.predict(x_to_predict, return_std=True)
 
@@ -51,8 +49,8 @@ def expected_improvement(x, gaussian_process, loss_optimum, greater_is_better=Fa
         Z = scaling_factor * (mu - loss_optimum) / sigma
         expected_improvement = scaling_factor * (mu - loss_optimum) * norm.cdf(Z) + sigma * norm.pdf(Z)
         expected_improvement[sigma == 0.0] = 0.0
-    time_later_later = time.time()
-    print("gauss_prediction_2", time_later_later - time_later)
+
+
     return -1 * expected_improvement
 
 
@@ -100,9 +98,9 @@ def sample_next_hyperparameter(acquisition_func, gaussian_process, evaluated_los
 
 
     for starting_point in np.random.uniform(bounds[:, 0], bounds[:, 1], size=(n_restarts, n_params)):
-        print(count)
 
-        time_now = time.time()
+
+
 
         res = minimize(fun=acquisition_func,
                        x0=starting_point.reshape(1, -1),
@@ -110,8 +108,8 @@ def sample_next_hyperparameter(acquisition_func, gaussian_process, evaluated_los
                        method=method,
                        args=(gaussian_process, loss_optimum, greater_is_better, n_params))
 
-        time_later = time.time()
-        print("minimization", time_later - time_now)
+
+
 
         if count==0:
             best_acquisition_value = res.fun
@@ -126,7 +124,7 @@ def sample_next_hyperparameter(acquisition_func, gaussian_process, evaluated_los
 
 
 def bayesian_optimisation(x,y,x_test,y_test, act_fce, loss, optimizer, batch_size, min_depth, max_depth, min_units, max_units, n_iters,  n_pre_samples=5,
-                          gp_params=None, random_search=False, alpha=1e-5, epsilon=1e-7, retrain_model_rounds = 10):
+                          gp_params=None, random_search=False, alpha=1e-5, epsilon=1e-7, retrain_model_rounds = 30):
     """ bayesian_optimisation
 
     Uses Gaussian Processes to optimise the loss function `sample_loss`.
@@ -174,7 +172,7 @@ def bayesian_optimisation(x,y,x_test,y_test, act_fce, loss, optimizer, batch_siz
 
     ##Train encoder decoder
     encoder, decoder, full_model = train_model(dimension_of_hidden_layers,n_of_act_fce, min_units, max_units,
-                                   min_depth, max_depth,10000, n_of_act_fce+1, reverse_order=reverse_order)
+                                   min_depth, max_depth,10, n_of_act_fce+1, y.shape[1], reverse_order=reverse_order)
 
     #Do initial search through the space
     number_of_examples = 0
@@ -198,8 +196,10 @@ def bayesian_optimisation(x,y,x_test,y_test, act_fce, loss, optimizer, batch_siz
 
         decoded_sanitized_list.append(decoded_sanitized)
         #Train the configuration pn data
-        f, NN_configs_list = find_set_in_z_space([datax_hidden_t_perf,datax_fce_t_perf], 0.1, 10)
-        x_list.extend(f), NN_configs_total_list.extend(NN_configs_list)
+        encoded_data = encoder.predict([datax_hidden_perf, datax_fce_perf])
+
+        x_list.extend(encoded_data), NN_configs_total_list.append(decoded_sanitized)
+
 
 
         serialized_arch_list.append(seriliaze_next_sample_for_loss_fce(decoded_sanitized, n_of_act_fce + 1))
@@ -208,9 +208,8 @@ def bayesian_optimisation(x,y,x_test,y_test, act_fce, loss, optimizer, batch_siz
 
         performance_metrics_list.append(performance_metrics)
         yp_list.append(performance_metrics[0])
-        for i in range(0,len(f)):
-            y_list.append(performance_metrics[0])
-        number_of_examples += 1
+        y_list.append(performance_metrics[0])
+
 
     xp = np.array(x_list)
     yp = np.array(y_list)
@@ -223,12 +222,12 @@ def bayesian_optimisation(x,y,x_test,y_test, act_fce, loss, optimizer, batch_siz
         model = gp.GaussianProcessRegressor(**gp_params)
     #Else use default params and Matern kernel
     else:
-        kernel = gp.kernels.Matern()
+        kernel = gp.kernels.Matern(length_scale=0.25, length_scale_bounds=[0,1])
         model = gp.GaussianProcessRegressor(kernel=kernel,
                                             alpha=alpha,
                                             n_restarts_optimizer=10,
                                             normalize_y=True)
-    print(len(x_list))
+
     #Now choose next architecture based on knowledge of past results
     for n in range(0,n_iters):
         if (n%retrain_model_rounds == 0):
@@ -256,10 +255,9 @@ def bayesian_optimisation(x,y,x_test,y_test, act_fce, loss, optimizer, batch_siz
         datax_hidden_perf, datax_hidden_t_perf, datax_fce_perf, datax_fce_t_perf = transform_into_timeseries(
             [decoded_sanitized, ])
 
-        #Find all possibilities
-        f, NN_configs_list = find_set_in_z_space([datax_hidden_t_perf, datax_fce_t_perf], 0.1, 10)
-        NN_configs_total_list.extend(NN_configs_list)
-        x_list.extend(f)
+        encoded_data = encoder.predict([datax_hidden_perf, datax_fce_perf])
+
+        x_list.extend(encoded_data), NN_configs_total_list.append(decoded_sanitized)
 
         #If it satisfies the depth requirements, proceed to train it
         if decoded_sanitized[0] > 0:
@@ -270,20 +268,17 @@ def bayesian_optimisation(x,y,x_test,y_test, act_fce, loss, optimizer, batch_siz
             performance_metrics_list.append(cv_score)
             cv_score = cv_score[0]
             yp_list.append(cv_score)
-            for i in range(0,len(f)):
-                y_list.append(cv_score)
+            y_list.append(cv_score)
 
         #If it does not, do not train, but set the cv_score to very high
         else:
             if non_sense:
                 cv_score = max(y_list)
-                for i in range(0, len(f)):
-                    y_list.append(cv_score)
+                y_list.append(cv_score)
             else:
                 cv_score = max(y_list) * 100
                 non_sense = True
-                for i in range(0, len(f)):
-                    y_list.append(cv_score)
+                y_list.append(cv_score)
 
 
         # Update xp and yp
@@ -367,7 +362,7 @@ def retrain_encode_again(NN_config_total_list,decoded_sanitized_list, performanc
 
     batch_size = 10
     number_of_configs = len(NN_config_total_list)
-    print(number_of_configs)
+
     encoded_data_list = []
     for i in range(0, int(number_of_configs/batch_size) + 1):
         if i < int(number_of_configs/batch_size) + 1:

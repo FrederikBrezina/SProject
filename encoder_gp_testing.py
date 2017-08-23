@@ -1,17 +1,20 @@
+import pickle
 from keras.models import Model
 from keras.layers import Input, Dense, LSTM, RepeatVector, concatenate, Flatten
-from keras.layers.normalization import BatchNormalization
+
 from keras import regularizers
 from keras.layers.local import LocallyConnected1D
 import numpy as np
-import sys
 
+import sklearn.gaussian_process as gp
+
+import sys
 from keras.layers.wrappers import TimeDistributed
 
 #Set global variables
-dimension_of_hidden_layers = 0
-max_depth_glob = 0
-number_of_parameters_per_layer_glob = 0
+dimension_of_hidden_layers = 8
+max_depth_glob = 3
+number_of_parameters_per_layer_glob = 3
 dimension_of_input1 = 2
 encoder_decoder = None
 encoder_performance = None
@@ -22,7 +25,7 @@ decoder_M = None
 max_units = None
 min_depth = None
 num_of_act_fce = None
-dimension_of_output_y = 0
+dimension_of_output_y = 3
 
 def decoder_encoder(decoder, encoder, input):
     layer = decoder(input)
@@ -187,9 +190,92 @@ def train_on_epoch(model2, x_h, x_h_t , x_fce, x_fce_t, epoch, model = None, dat
                         and rounds_from_last_train_perf > 15:
                     cur_line_perf = 0
 
-        # print("Epoch #{}: model_full Loss: {}, model_decoder_encoder_loss: {},"
-              #" model_perf_Loss: {}".format(epoch + 1,model2_loss[-1],model_decoder_encoder_loss[-1], model_loss[-1]))
+        print("Epoch #{}: model_full Loss: {}, model_decoder_encoder_loss: {},"
+              " model_perf_Loss: {}".format(epoch + 1,model2_loss[-1],model_decoder_encoder_loss[-1], model_loss[-1]))
 
+def train_model(dimension_of_decoder, num_of_act_fce1, min_units1, max_units1, min_depth1, max_depth,
+                no_of_training_data1, no_of_parameters_per_layer, dimension_of_output, reverse_order):
+    # Callable function from outside to train the model
+    # Setting global variables for the models
+    global max_depth_glob, number_of_parameters_per_layer_glob, dimension_of_hidden_layers, encoder_decoder, \
+        encoder_performance, no_of_training_data, min_units, max_units, min_depth, \
+        num_of_act_fce, decoder_encoder_M, decoder_M, encoder_M, dimension_of_output_y
+    max_depth_glob = max_depth
+    dimension_of_output_y = dimension_of_output
+    no_of_training_data, min_units = no_of_training_data1, min_units1
+    max_units = max_units1
+    min_depth = min_depth1
+    num_of_act_fce = num_of_act_fce1
+
+    dimension_of_hidden_layers = dimension_of_decoder
+    number_of_parameters_per_layer_glob = no_of_parameters_per_layer
+
+    # Constructing the model
+    # Constructing encoder
+    input1 = Input(shape=(max_depth, num_of_act_fce,))
+    input2 = Input(shape=(max_depth, 1,))
+    base_m, base_m_out = encoder_model(input2, input1)
+    encoder_M = base_m
+    # Constructing decoder
+    input = Input(shape=(dimension_of_hidden_layers,))
+    decoder, decoder_out = model_for_decoder(input)
+    decoder_M = decoder
+    # Constructing the whole model encoder_decoder
+    input1 = Input(shape=(max_depth, num_of_act_fce,))
+    input2 = Input(shape=(max_depth, 1,))
+    full_model = encoder_decoder_construct(input2, input1, base_m, decoder)
+    encoder_decoder = full_model
+    # Construct the decoder_encoder
+    input = Input(shape=(dimension_of_hidden_layers,))
+    decoder_encoder_M = decoder_encoder(decoder, base_m, input)
+
+    # Constructing a encoder_performance model
+    input1 = Input(shape=(max_depth, num_of_act_fce,))
+    input2 = Input(shape=(max_depth, 1,))
+    encoder_performance = encoder_performance_construct(input2, input1, base_m, decoder)
+
+    pkl_file = open('encoder_input2.pkl', 'rb' )
+
+    data1 = pickle.load(pkl_file,  encoding='latin1')
+    pkl_file.close()
+
+    data2 = np.loadtxt('performance_list.txt', delimiter=" ")
+
+
+
+
+    datax_hidden,datax_hidden_test, datax_hidden_t, datax_hidden_t_test,\
+    datax_fce, datax_fce_test, datax_fce_t, datax_fce_t_test = data1[0][0:1000], data1[0][1000:], data1[1][0:1000],\
+                                                           data1[1][1000:], data1[2][0:1000], data1[2][1000:], data1[3][0:1000], data1[3][1000:]
+
+    datax_hidden2, datax_hidden_t2, datax_fce2, datax_fce_t2 = create_first_training_data(no_of_training_data, min_units,
+                                                                                      max_units,
+                                                                                      min_depth, max_depth,
+                                                                                      num_of_act_fce,
+                                                                                      no_of_parameters_per_layer)
+    # Train the encoder_decoder
+    for epoch in range(0, 100):
+        train_on_epoch(full_model, datax_hidden2, datax_hidden_t2, datax_fce2, datax_fce_t2, epoch, batch_size=10,
+                       reverse_order=reverse_order)
+
+    encoded_data_test = encoder_M.predict([datax_hidden_test, datax_fce_test])
+    encoded_data = encoder_M.predict([datax_hidden, datax_fce])
+    kernel = gp.kernels.Matern(length_scale=0.25, length_scale_bounds=[0, 1])
+    alpha = 1e-5
+    model = gp.GaussianProcessRegressor(kernel=kernel,
+                                        alpha=alpha,
+                                        n_restarts_optimizer=10,
+                                        normalize_y=True)
+    xp = np.array(encoded_data)
+    yp = np.array(data2[:1000])
+    model.fit(xp,yp)
+    running_sum = 0
+    for i in range(0, datax_hidden_test.shape[0]):
+        to_pred  = np.array(encoded_data_test[i])
+        mu, sigma = model.predict(to_pred.reshape(-1, 8))
+        running_sum = abs(mu - data2[1000 + i])
+    avg = running_sum / datax_hidden_test.shape[0]
+    print(avg)
 
 def create_bounds(num_of_act_fce, min_units, max_units, depth, max_depth):
     #Creates the bounds for random data which trains the model above
@@ -206,32 +292,6 @@ def create_bounds(num_of_act_fce, min_units, max_units, depth, max_depth):
             bounds[i * (num_of_act_fce + 1) + j, 1] = 1
 
     return bounds
-
-def serialize_next_sample_for_gp(next_sample, number_of_parameters_per_layer):
-    #Serializes the random data to trainable form
-    global max_depth_glob
-    next_sample = next_sample.tolist()
-    seriliezed_next_sample = np.zeros((max_depth_glob*number_of_parameters_per_layer))
-    number_of_layers = int(len(next_sample) / number_of_parameters_per_layer)
-
-    for i in range(0, number_of_layers):
-        #Rounds the number of units in the layer
-        seriliezed_next_sample[i * number_of_parameters_per_layer] = \
-            round(next_sample[i * number_of_parameters_per_layer])
-        #Chooses the activation function
-        index = next_sample[(i * number_of_parameters_per_layer) + 1: (i + 1) * number_of_parameters_per_layer].index(
-                max(next_sample[(i * number_of_parameters_per_layer) + 1: (i + 1) * number_of_parameters_per_layer]))
-        for fce in range(1, number_of_parameters_per_layer):
-            if index == fce:
-                seriliezed_next_sample[i * number_of_parameters_per_layer + fce] = 1
-            else:
-                seriliezed_next_sample[i * number_of_parameters_per_layer + fce] = 0
-    for i in range(number_of_layers, max_depth_glob):
-        for i2 in range(0, number_of_parameters_per_layer):
-            seriliezed_next_sample[i* number_of_parameters_per_layer + i2] = 0
-
-
-    return seriliezed_next_sample
 
 def create_first_training_data(no_of_training_data,min_units, max_units,
                                min_depth, max_depth, num_of_act_fce, no_of_parameters_per_layer):
@@ -273,129 +333,37 @@ def create_first_training_data(no_of_training_data,min_units, max_units,
         i += 1
     return datax_hidden, datax_hidden_t, datax_fce, datax_fce_t
 
-def transform_into_timeseries(datax):
+def serialize_next_sample_for_gp(next_sample, number_of_parameters_per_layer):
+    #Serializes the random data to trainable form
+    global max_depth_glob
+    next_sample = next_sample.tolist()
+    seriliezed_next_sample = np.zeros((max_depth_glob*number_of_parameters_per_layer))
+    number_of_layers = int(len(next_sample) / number_of_parameters_per_layer)
 
-    max_depth = max_depth_glob
-    num_of_act_fce = number_of_parameters_per_layer_glob - 1
+    for i in range(0, number_of_layers):
+        #Rounds the number of units in the layer
+        seriliezed_next_sample[i * number_of_parameters_per_layer] = \
+            round(next_sample[i * number_of_parameters_per_layer])
+        #Chooses the activation function
+        index = next_sample[(i * number_of_parameters_per_layer) + 1: (i + 1) * number_of_parameters_per_layer].index(
+                max(next_sample[(i * number_of_parameters_per_layer) + 1: (i + 1) * number_of_parameters_per_layer]))
+        for fce in range(1, number_of_parameters_per_layer):
+            if index == fce:
+                seriliezed_next_sample[i * number_of_parameters_per_layer + fce] = 1
+            else:
+                seriliezed_next_sample[i * number_of_parameters_per_layer + fce] = 0
+    for i in range(number_of_layers, max_depth_glob):
+        for i2 in range(0, number_of_parameters_per_layer):
+            seriliezed_next_sample[i* number_of_parameters_per_layer + i2] = 0
 
-    length_of_datax = len(datax)
-    datax_hidden_perf, datax_hidden_t_perf = np.zeros((length_of_datax, max_depth_glob, 1)), \
-                                             np.zeros((length_of_datax, max_depth_glob, 1))
 
-    datax_fce_perf, datax_fce_t_perf = np.zeros(
-        (length_of_datax, max_depth_glob, number_of_parameters_per_layer_glob - 1)), np.zeros(
-        (length_of_datax, max_depth_glob, number_of_parameters_per_layer_glob - 1))
-
-
-
-    for i in range(0, length_of_datax):
-        bit_count = 0
-        act_len_of_datax = len(datax[i])
-        steps = 0
-
-        while bit_count < act_len_of_datax:
-            datax_hidden_t_perf[i, steps, 0] = datax[i][bit_count]
-            bit_count += 1
-            try:
-                for bits_per_layer in range(0, num_of_act_fce):
-                    datax_fce_t_perf[i, steps, bits_per_layer] = datax[i][bit_count]
-
-                    bit_count += 1
-            except (IndexError):
-                pass
-            steps += 1
-
-        #Transpose it, for reverse order
-        for steps2 in range(0, steps):
-            datax_hidden_perf[i, steps2, :] = datax_hidden_t_perf[i, max_depth - steps2 - 1, :]
-            datax_fce_perf[i, steps2, :] = datax_fce_t_perf[i, max_depth - steps2 - 1, :]
+    return seriliezed_next_sample
 
 
 
-        return datax_hidden_perf, datax_hidden_t_perf, datax_fce_perf, datax_fce_t_perf
-
-
-def train_model(dimension_of_decoder, num_of_act_fce1, min_units1, max_units1,min_depth1, max_depth,
-                no_of_training_data1, no_of_parameters_per_layer,dimension_of_output, reverse_order):
-    #Callable function from outside to train the model
-    #Setting global variables for the models
-    global max_depth_glob, number_of_parameters_per_layer_glob, dimension_of_hidden_layers, encoder_decoder, \
-        encoder_performance, no_of_training_data, min_units, max_units, min_depth, \
-        num_of_act_fce, decoder_encoder_M, decoder_M, encoder_M, dimension_of_output_y
-    max_depth_glob = max_depth
-    dimension_of_output_y = dimension_of_output
-    no_of_training_data, min_units = no_of_training_data1, min_units1
-    max_units = max_units1
-    min_depth = min_depth1
-    num_of_act_fce = num_of_act_fce1
-
-
-
-    dimension_of_hidden_layers = dimension_of_decoder
-    number_of_parameters_per_layer_glob = no_of_parameters_per_layer
-
-    #Constructing the model
-    #Constructing encoder
-    input1 = Input(shape=(max_depth, num_of_act_fce,))
-    input2 = Input(shape=(max_depth, 1,))
-    base_m, base_m_out = encoder_model(input2, input1)
-    encoder_M = base_m
-    #Constructing decoder
-    input = Input(shape=(dimension_of_hidden_layers,))
-    decoder, decoder_out = model_for_decoder(input)
-    decoder_M = decoder
-    #Constructing the whole model encoder_decoder
-    input1 = Input(shape=(max_depth, num_of_act_fce,))
-    input2 = Input(shape=(max_depth, 1,))
-    full_model= encoder_decoder_construct(input2, input1,base_m,decoder)
-    encoder_decoder = full_model
-    #Construct the decoder_encoder
-    input = Input(shape=(dimension_of_hidden_layers,))
-    decoder_encoder_M = decoder_encoder(decoder,base_m, input)
-
-
-
-    #Constructing a encoder_performance model
-    input1 = Input(shape=(max_depth, num_of_act_fce,))
-    input2 = Input(shape=(max_depth, 1,))
-    encoder_performance = encoder_performance_construct(input2, input1, base_m, decoder)
-
-    datax_hidden, datax_hidden_t, datax_fce, datax_fce_t = create_first_training_data(no_of_training_data, min_units,
-                                                                                      max_units,
-                                                                                      min_depth, max_depth,
-                                                                                      num_of_act_fce,
-                                                                                      no_of_parameters_per_layer)
-
-    #Train the encoder_decoder
-    for epoch in range(0,100):
-        train_on_epoch(full_model, datax_hidden, datax_hidden_t, datax_fce, datax_fce_t, epoch, batch_size=10,
-                       reverse_order=reverse_order)
-
-    #Return encoder and decoder, full model
-    return base_m, decoder, full_model
-
-def train_all_models(datax, datay):
-    datax_hidden_perf, datax_hidden_t_perf, datax_fce_perf, datax_fce_t_perf = transform_into_timeseries(datax)
-
-    #Do datay separately
-    length_of_datax = len(datax)
-    datay_perf = np.zeros((length_of_datax, len(datay[0])))
-    for i in range(0,length_of_datax):
-        # Do datay now
-        datay_perf[i, :] = datay[i]
-
-    datax_hidden, datax_hidden_t, datax_fce, datax_fce_t = create_first_training_data(no_of_training_data, min_units,
-                                                                                      max_units,
-                                                                                      min_depth, max_depth_glob,
-                                                                                      num_of_act_fce,
-                                                                                      number_of_parameters_per_layer_glob)
-
-    for epoch in range(0, 100):
-        train_on_epoch(encoder_decoder, datax_hidden, datax_hidden_t, datax_fce, datax_fce_t, epoch,
-                       encoder_performance, datax_hidden_perf,
-                       datax_hidden_t_perf, datax_fce_perf, datax_fce_t_perf,
-                       datay_perf, batch_size=10, reverse_order=True)
-
-def predict_encoded(output):
-    return encoder_M.predict(output)
+if __name__ == "__main__":
+    dimension_of_decoder, num_of_act_fce1, min_units1, max_units1, min_depth1, max_depth,\
+    no_of_training_data1, no_of_parameters_per_layer, dimension_of_output, reverse_order = 8, 2, 2, 100, 2, 3, 1000, 3, 3, True
+    train_model(dimension_of_decoder, num_of_act_fce1, min_units1, max_units1, min_depth1, max_depth,
+                no_of_training_data1, no_of_parameters_per_layer, dimension_of_output, reverse_order)
 

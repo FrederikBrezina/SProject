@@ -273,7 +273,7 @@ def train_model(dimension_of_decoder, num_of_act_fce1, min_units1, max_units1, m
     running_sum_list = []
     for i in range(0, datax_hidden_test.shape[0]):
         to_pred  = np.array(encoded_data_test[i])
-        mu, sigma = model.predict(to_pred.reshape(-1, 8))
+        mu, sigma = model.predict(to_pred.reshape(-1, encoded_data_test[i].shape[0]),return_std=True)
         running_sum = abs(mu - data2[1000 + i])
         running_sum_list.append([running_sum, mu, data2[1000 + i]])
     avg = running_sum / datax_hidden_test.shape[0]

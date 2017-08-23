@@ -275,9 +275,9 @@ def train_model(dimension_of_decoder, num_of_act_fce1, min_units1, max_units1, m
         to_pred  = np.array(encoded_data_test[i])
         mu, sigma = model.predict(to_pred.reshape(-1, encoded_data_test[i].shape[0]),return_std=True)
         running_sum = abs(mu - data2[1000 + i])
-        running_sum_list.append([running_sum, mu, data2[1000 + i]])
+        running_sum_list.append([running_sum, mu, data2[1000 + i], sigma])
     avg = running_sum / datax_hidden_test.shape[0]
-    running_sum_list.append([avg, 0, 0])
+    running_sum_list.append([avg, 0, 0, 0])
     running_sum_list = np.array(running_sum_list)
     np.savetxt("error_list.txt", running_sum_list)
 

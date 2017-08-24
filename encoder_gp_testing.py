@@ -260,23 +260,32 @@ def train_model(dimension_of_decoder, num_of_act_fce1, min_units1, max_units1, m
 
     encoded_data_test = encoder_M.predict([datax_hidden_test, datax_fce_test])
     encoded_data = encoder_M.predict([datax_hidden, datax_fce])
-    kernel = gp.kernels.Matern(length_scale=0.25)
+    kernel = gp.kernels.Matern(length_scale=0.1)
     alpha = 1e-5
     model = gp.GaussianProcessRegressor(kernel=kernel,
                                         alpha=alpha,
-                                        n_restarts_optimizer=10,
+                                        n_restarts_optimizer=20,
                                         normalize_y=True)
     xp = np.array(encoded_data)
     yp = np.array(data2[:1000])
     model.fit(xp,yp)
-    running_sum = 0
+    avg = 0
     running_sum_list = []
     for i in range(0, datax_hidden_test.shape[0]):
         to_pred  = np.array(encoded_data_test[i])
-        mu, sigma = model.predict(to_pred.reshape(-1, encoded_data_test[i].shape[0]),return_std=True)
+        to_pred.reshape(-1, encoded_data_test[i].shape[0])
+        print(to_pred)
+        mu, sigma = model.predict(to_pred,return_std=True)
         running_sum = abs(mu - data2[1000 + i])
+        avg += running_sum
         running_sum_list.append([running_sum, mu, data2[1000 + i], sigma])
-    avg = running_sum / datax_hidden_test.shape[0]
+        print(running_sum_list[-1])
+    avg = avg / datax_hidden_test.shape[0]
+    print(avg, "avg")
+    to_pred = np.array(encoded_data[0])
+    to_pred.reshape(-1, encoded_data[0].shape[0])
+    mu, sigma = model.predict(to_pred, return_std=True)
+    print(mu, sigma, "mu and sigma of training")
     running_sum_list.append([avg, 0, 0, 0])
     running_sum_list = np.array(running_sum_list)
     np.savetxt("error_list.txt", running_sum_list)

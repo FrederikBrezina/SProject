@@ -1,10 +1,4 @@
-import pickle
-
-pkl_file = open('encoder_input.pkl', 'rb')
-data2 = pickle.load(pkl_file)
-
-
-pkl_file.close()
-output = open('encoder_input2.pkl', 'wb')
-pickle.dump(data2, output, protocol=2)
-output.close()
+import numpy as np
+f = np.loadtxt('../error_list.txt')
+for i in range(0, f.shape[0]):
+    print(f[i])

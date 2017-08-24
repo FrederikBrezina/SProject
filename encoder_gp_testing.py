@@ -254,13 +254,14 @@ def train_model(dimension_of_decoder, num_of_act_fce1, min_units1, max_units1, m
                                                                                       num_of_act_fce,
                                                                                       no_of_parameters_per_layer)
     # Train the encoder_decoder
-    for epoch in range(0, 100):
+    for epoch in range(0, 1):
         train_on_epoch(full_model, datax_hidden2, datax_hidden_t2, datax_fce2, datax_fce_t2, epoch, batch_size=10,
                        reverse_order=reverse_order)
+        full_model.test_on_batch([datax_hidden_test, datax_fce_test], [datax_hidden_t_test, datax_fce_t_test])
 
     encoded_data_test = encoder_M.predict([datax_hidden_test, datax_fce_test])
     encoded_data = encoder_M.predict([datax_hidden, datax_fce])
-    kernel = gp.kernels.Matern(length_scale=0.1)
+    kernel = gp.kernels.Matern(length_scale=[0.04,0.04,0.04,0.04,0.04,0.04,0.04,0.04], length_scale_bounds=([0,1],[0,1],[0,1],[0,1],[0,1],[0,1],[0,1],[0,1]))
     alpha = 1e-5
     model = gp.GaussianProcessRegressor(kernel=kernel,
                                         alpha=alpha,

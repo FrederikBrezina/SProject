@@ -12,7 +12,7 @@ import sys
 from keras.layers.wrappers import TimeDistributed
 
 #Set global variables
-dimension_of_hidden_layers = 8
+dimension_of_hidden_layers = 6
 max_depth_glob = 3
 number_of_parameters_per_layer_glob = 3
 dimension_of_input1 = 2
@@ -224,7 +224,7 @@ def train_model(dimension_of_decoder, num_of_act_fce1, min_units1, max_units1, m
                                                                                       no_of_parameters_per_layer)
     datay_perf = np.array(data2)
     # Train the encoder_decoder
-    for epoch in range(0, 1):
+    for epoch in range(0, 100):
         train_on_epoch(full_model, datax_hidden2, datax_hidden_t2, datax_fce2, datax_fce_t2, epoch, encoder_performance, datax_hidden,
                        datax_hidden_t, datax_fce, datax_fce_t,
                        datay_perf ,batch_size=10,
@@ -234,7 +234,7 @@ def train_model(dimension_of_decoder, num_of_act_fce1, min_units1, max_units1, m
 
     encoded_data_test = encoder_M.predict([datax_hidden_test, datax_fce_test])
     encoded_data = encoder_M.predict([datax_hidden, datax_fce])
-    kernel = gp.kernels.Matern(length_scale=[0.04,0.04,0.04,0.04,0.04,0.04,0.04,0.04])
+    kernel = gp.kernels.Matern(length_scale=0.1)
     alpha = 1e-5
     model = gp.GaussianProcessRegressor(kernel=kernel,
                                         alpha=alpha,
@@ -350,7 +350,7 @@ def serialize_next_sample_for_gp(next_sample, number_of_parameters_per_layer):
 
 if __name__ == "__main__":
     dimension_of_decoder, num_of_act_fce1, min_units1, max_units1, min_depth1, max_depth,\
-    no_of_training_data1, no_of_parameters_per_layer, dimension_of_output, reverse_order = 8, 2, 2, 100, 2, 3, 1000, 3, 3, True
+    no_of_training_data1, no_of_parameters_per_layer, dimension_of_output, reverse_order = 6, 2, 2, 100, 2, 3, 1000, 3, 3, True
     train_model(dimension_of_decoder, num_of_act_fce1, min_units1, max_units1, min_depth1, max_depth,
                 no_of_training_data1, no_of_parameters_per_layer, dimension_of_output, reverse_order)
 

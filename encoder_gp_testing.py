@@ -95,7 +95,7 @@ def encoder_performance_construct(input1, input2, encoder, decoder):
     output1, output2 = decoder(layer)
     layer = Dense(15, activation='relu', kernel_regularizer=regularizers.l2(0.01))(layer)
     layer = Dense(10, activation='relu', kernel_regularizer=regularizers.l2(0.01))(layer)
-    output3 = Dense(5, activation='tanh', kernel_regularizer=regularizers.l2(0.01))(layer)
+    output3 = Dense(1, activation='tanh', kernel_regularizer=regularizers.l2(0.01))(layer)
     model = Model(inputs=[input1, input2], outputs=[output1,output2,output3])
     model.compile(loss='mse', optimizer='adam', metrics=[])
 
@@ -137,36 +137,11 @@ def train_on_epoch(model2, x_h, x_h_t , x_fce, x_fce_t, epoch, model = None, dat
     model_decoder_encoder_loss = []
 
     for i in range(0,  no_of_batches):
-        futur_line = cur_line + batch_size
-        if (futur_line)<= len_of_data:
-            #Train full model
-            set_trainable(encoder_M, False), set_trainable(decoder_M, True)
-
-            model2_loss.append(model2.train_on_batch([x_h[cur_line:(futur_line)], x_fce[cur_line:(futur_line)]],
-                                                     [x_h_2[cur_line:(futur_line)], x_fce_2[cur_line:(futur_line)]
-                                                      ]))
-
-            set_trainable(encoder_M, True), set_trainable(decoder_M, False)
-            prediction = encoder_M.predict([x_h[cur_line:(futur_line)], x_fce[cur_line:(futur_line)]])
-            model_decoder_encoder_loss.append(decoder_encoder_M.train_on_batch(prediction, prediction))
-
-
-            #Train only encoder
-            cur_line = futur_line
-        elif (cur_line<len_of_data):
-
-            set_trainable(encoder_M, False), set_trainable(decoder_M, True)
-            model2_loss.append(model2.train_on_batch([x_h[cur_line:(len_of_data)], x_fce[cur_line:(len_of_data)]],
-                                                     [x_h_2[cur_line:(len_of_data)], x_fce_2[cur_line:(len_of_data)]]))
-
-            set_trainable(encoder_M, True), set_trainable(decoder_M, False)
-            prediction = encoder_M.predict([x_h[cur_line:(len_of_data)], x_fce[cur_line:(len_of_data)]])
-            model_decoder_encoder_loss.append(decoder_encoder_M.train_on_batch(prediction, prediction))
 
         #Train the performance model
         futur_line_perf = cur_line_perf + batch_size
         if model != None:
-            if futur_line <= len_of_data_perf:
+            if futur_line_perf <= len_of_data_perf:
                 model_loss.append(model.train_on_batch([datax_hidden_perf[cur_line_perf:(futur_line_perf)],
                                                         datax_fce_perf[cur_line_perf:(futur_line_perf)]],
                                                        [x_h_2_perf[cur_line_perf:(futur_line_perf)],
@@ -183,15 +158,9 @@ def train_on_epoch(model2, x_h, x_h_t , x_fce, x_fce_t, epoch, model = None, dat
                                                         ]))
                 cur_line_perf = len_of_data_perf
                 rounds_from_last_train_perf = 0
-            else:
-                rounds_from_last_train_perf += 1
-                if (rounds_from_last_train_perf * batch_size > 50) and (
-                        rounds_from_last_train_perf * batch_size > 10 * len_of_data_perf) \
-                        and rounds_from_last_train_perf > 15:
-                    cur_line_perf = 0
 
-        print("Epoch #{}: model_full Loss: {}, model_decoder_encoder_loss: {},"
-              " model_perf_Loss: {}".format(epoch + 1,model2_loss[-1],model_decoder_encoder_loss[-1], model_loss[-1]))
+
+        print("Epoch #{}: model_full Loss: {}".format(epoch + 1, model_loss[-1]))
 
 def train_model(dimension_of_decoder, num_of_act_fce1, min_units1, max_units1, min_depth1, max_depth,
                 no_of_training_data1, no_of_parameters_per_layer, dimension_of_output, reverse_order):
@@ -253,15 +222,19 @@ def train_model(dimension_of_decoder, num_of_act_fce1, min_units1, max_units1, m
                                                                                       min_depth, max_depth,
                                                                                       num_of_act_fce,
                                                                                       no_of_parameters_per_layer)
+    datay_perf = np.array(data2)
     # Train the encoder_decoder
     for epoch in range(0, 1):
-        train_on_epoch(full_model, datax_hidden2, datax_hidden_t2, datax_fce2, datax_fce_t2, epoch, batch_size=10,
+        train_on_epoch(full_model, datax_hidden2, datax_hidden_t2, datax_fce2, datax_fce_t2, epoch, encoder_performance, datax_hidden,
+                       datax_hidden_t, datax_fce, datax_fce_t,
+                       datay_perf ,batch_size=10,
                        reverse_order=reverse_order)
-        full_model.test_on_batch([datax_hidden_test, datax_fce_test], [datax_hidden_t_test, datax_fce_t_test])
+
+
 
     encoded_data_test = encoder_M.predict([datax_hidden_test, datax_fce_test])
     encoded_data = encoder_M.predict([datax_hidden, datax_fce])
-    kernel = gp.kernels.Matern(length_scale=[0.04,0.04,0.04,0.04,0.04,0.04,0.04,0.04], length_scale_bounds=([0,1],[0,1],[0,1],[0,1],[0,1],[0,1],[0,1],[0,1]))
+    kernel = gp.kernels.Matern(length_scale=[0.04,0.04,0.04,0.04,0.04,0.04,0.04,0.04])
     alpha = 1e-5
     model = gp.GaussianProcessRegressor(kernel=kernel,
                                         alpha=alpha,

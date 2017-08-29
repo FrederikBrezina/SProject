@@ -223,46 +223,54 @@ def train_model(dimension_of_decoder, num_of_act_fce1, min_units1, max_units1, m
                                                                                       num_of_act_fce,
                                                                                       no_of_parameters_per_layer)
     datay_perf = np.array(data2)
-    # Train the encoder_decoder
-    for epoch in range(0, 100):
-        train_on_epoch(full_model, datax_hidden2, datax_hidden_t2, datax_fce2, datax_fce_t2, epoch, encoder_performance, datax_hidden,
-                       datax_hidden_t, datax_fce, datax_fce_t,
-                       datay_perf ,batch_size=10,
-                       reverse_order=reverse_order)
+    datay_perf_test = datay_perf[1000:]
+    datay_perf = datay_perf[:1000]
+
+    for i2 in range(0,2):
+        if i2 == 0:
+            # Train the encoder_decoder
+            for epoch in range(0, 100):
+                train_on_epoch(full_model, datax_hidden2, datax_hidden_t2, datax_fce2, datax_fce_t2, epoch, encoder_performance, datax_hidden,
+                               datax_hidden_t, datax_fce, datax_fce_t,
+                               datay_perf ,batch_size=2,
+                               reverse_order=reverse_order)
+        else:
+            encoder_performance.fit([datax_hidden,datax_fce],[datax_hidden_t, datax_fce_t, datay_perf], batch_size=2,epochs=100,validation_data=([datax_hidden_test,datax_fce_test],[datax_hidden_t_test, datax_fce_t_test,datay_perf_test]))
 
 
 
-    encoded_data_test = encoder_M.predict([datax_hidden_test, datax_fce_test])
-    encoded_data = encoder_M.predict([datax_hidden, datax_fce])
-    kernel = gp.kernels.Matern(length_scale=0.1)
-    alpha = 1e-5
-    model = gp.GaussianProcessRegressor(kernel=kernel,
-                                        alpha=alpha,
-                                        n_restarts_optimizer=20,
-                                        normalize_y=True)
-    xp = np.array(encoded_data)
-    yp = np.array(data2[:1000])
-    model.fit(xp,yp)
-    avg = 0
-    running_sum_list = []
-    for i in range(0, datax_hidden_test.shape[0]):
-        to_pred  = np.array(encoded_data_test[i])
-        to_pred.reshape(-1, encoded_data_test[i].shape[0])
-        print(to_pred)
-        mu, sigma = model.predict(to_pred,return_std=True)
-        running_sum = abs(mu - data2[1000 + i])
-        avg += running_sum
-        running_sum_list.append([running_sum, mu, data2[1000 + i], sigma])
-        print(running_sum_list[-1])
-    avg = avg / datax_hidden_test.shape[0]
-    print(avg, "avg")
-    to_pred = np.array(encoded_data[0])
-    to_pred.reshape(-1, encoded_data[0].shape[0])
-    mu, sigma = model.predict(to_pred, return_std=True)
-    print(mu, sigma, "mu and sigma of training")
-    running_sum_list.append([avg, 0, 0, 0])
-    running_sum_list = np.array(running_sum_list)
-    np.savetxt("error_list.txt", running_sum_list)
+        encoded_data_test = encoder_M.predict([datax_hidden_test, datax_fce_test])
+        encoded_data = encoder_M.predict([datax_hidden, datax_fce])
+        for i in range(0,20):
+            kernel = gp.kernels.Matern(length_scale=(1/(2**i)))
+            alpha = 1e-10
+            model = gp.GaussianProcessRegressor(kernel=kernel,
+                                                alpha=alpha,
+                                                n_restarts_optimizer=20,
+                                                normalize_y=True)
+            xp = np.array(encoded_data)
+            yp = np.array(data2[:1000])
+            model.fit(xp,yp)
+            avg = 0
+            running_sum_list = []
+            for i in range(0, datax_hidden_test.shape[0]):
+                to_pred  = np.array(encoded_data_test[i])
+                to_pred.reshape(-1, encoded_data_test[i].shape[0])
+                print(to_pred)
+                mu, sigma = model.predict(to_pred,return_std=True)
+                running_sum = abs(mu - data2[1000 + i])
+                avg += running_sum
+                running_sum_list.append([running_sum, mu, data2[1000 + i], sigma])
+                print(running_sum_list[-1])
+            avg = avg / datax_hidden_test.shape[0]
+            print(avg, "avg")
+            to_pred = np.array(encoded_data[0])
+            to_pred.reshape(-1, encoded_data[0].shape[0])
+            mu, sigma = model.predict(to_pred, return_std=True)
+            print(mu, sigma, "mu and sigma of training")
+            running_sum_list.append([avg, 0, 0, 0])
+            running_sum_list = np.array(running_sum_list)
+            np.savetxt("error_list{},{}.txt".format(i2,i), running_sum_list)
 
 def create_bounds(num_of_act_fce, min_units, max_units, depth, max_depth):
     #Creates the bounds for random data which trains the model above

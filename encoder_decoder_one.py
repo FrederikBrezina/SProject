@@ -77,11 +77,7 @@ def model_for_decoder(input):
     output1 = TimeDistributed(Dense(10, activation='relu', kernel_regularizer=regularizers.l2(0.01)))(output)
     output1 = TimeDistributed(Dense(5, activation='tanh', kernel_regularizer=regularizers.l2(0.01)))(output)
     output1 = TimeDistributed(Dense(1, activation='linear'), name="hidden_units")(output1)
-    output2 = TimeDistributed(
-        Dense(2 * number_of_parameters_per_layer_glob, activation='relu'))(output)
-    output2 = TimeDistributed(
-        Dense(2 * number_of_parameters_per_layer_glob, activation='tanh'))(output2)
-    output2 = TimeDistributed(Dense(number_of_parameters_per_layer_glob - 1, activation='softmax', activity_regularizer=regularizers.l1(0.1)), name="act_fce")(output2)
+    output2 = TimeDistributed(Dense(number_of_parameters_per_layer_glob - 1, activation='softmax', activity_regularizer=regularizers.l1(0.1)), name="act_fce")(output)
     model = Model(inputs=input,outputs=[output1, output2])
     model.compile(loss={"hidden_units" : 'mse', "act_fce" : "categorical_crossentropy"}, optimizer='adam', metrics=[])
 
@@ -97,17 +93,34 @@ def encoder_decoder_construct(input1, input2, encoder, decoder):
 
     return model
 def encoder_performance_construct(input1, input2, encoder, decoder):
-
+    # TimeDistributed Dense layer, for each layer in NN config
     layer = encoder([input1, input2])
-    output1, output2 = decoder(layer)
+
+    # Repeat the context vector and feed it at every time step
+    output = RepeatVector(max_depth_glob)(layer)  # Get the last output of the GRU and repeats it
+    # Return the sequence into time distributed dense network
+    output = LSTM(dimension_of_hidden_layers, kernel_regularizer=regularizers.l2(0.005),
+                  return_sequences=True, name='lstm_output')(output)
+    # Last layer, Dense layer before the output prediction and reconstruction of the input
+    output1 = TimeDistributed(Dense(10, activation='relu', kernel_regularizer=regularizers.l2(0.01)))(output)
+    output1 = TimeDistributed(Dense(5, activation='tanh', kernel_regularizer=regularizers.l2(0.01)))(output1)
+    output1 = TimeDistributed(Dense(1, activation='relu', name="hidden_units"))(output1)
+    output2 = TimeDistributed(
+        Dense(3*number_of_parameters_per_layer_glob , activation='relu'))(output)
+    output2 = TimeDistributed(
+        Dense(2 * number_of_parameters_per_layer_glob, activation='tanh'))(output2)
+    output2 = TimeDistributed(
+        Dense(number_of_parameters_per_layer_glob - 1, activation='softmax', activity_regularizer=regularizers.l1(0.1),
+        name="act_fce"))(output2)
+
+
+    # Generate encoded configuration and normalize it
     layer = Dense(15, activation='relu', kernel_regularizer=regularizers.l2(0.01))(layer)
-    layer = Dense(10, activation='relu', kernel_regularizer=regularizers.l2(0.01))(layer)
-    output3 = Dense(1, activation='linear')(layer)
+    layer = Dense(10, activation='tanh', kernel_regularizer=regularizers.l2(0.01))(layer)
+    output3 = Dense(1, activation='relu', name="perf")(layer)
     model = Model(inputs=[input1, input2], outputs=[output1,output2,output3])
-    model.compile(loss='mse', optimizer='adam', metrics=[])
-
+    model.compile(loss={"hidden_units": 'mse', "act_fce": "categorical_crossentropy", "perf": "mse"}, optimizer='adam', metrics=[])
     return model
-
 
 def set_trainable(model, trainable=False):
     model.trainable = trainable
@@ -235,7 +248,7 @@ def train_model(dimension_of_decoder, num_of_act_fce1, min_units1, max_units1, m
 
     for i2 in range(0,1):
 
-        encoder_performance.fit([datax_hidden,datax_fce],[datax_hidden_t, datax_fce_t, datay_perf], batch_size=10,epochs=100,validation_data=([datax_hidden_test,datax_fce_test],[datax_hidden_t_test, datax_fce_t_test,datay_perf_test]))
+        encoder_performance.fit([datax_hidden,datax_fce],[datax_hidden_t, datax_fce_t, datay_perf], batch_size=5,epochs=300,validation_data=([datax_hidden_test,datax_fce_test],[datax_hidden_t_test, datax_fce_t_test,datay_perf_test]))
 
 
 

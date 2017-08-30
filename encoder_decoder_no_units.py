@@ -52,17 +52,15 @@ def encoded_decoder(decoder, input1, local):
 
 
 def encoder_model(input1, input2):
-    #TimeDistributed Dense layer, for each layer in NN config
-    layer = TimeDistributed(Dense(dimension_of_input1,  kernel_regularizer=regularizers.l2(0.01), activation='relu'))(input1)
-    layer2 = TimeDistributed(Dense(dimension_of_hidden_layers, kernel_regularizer=regularizers.l2(0.01), activation='relu'))(input2)
-    layer = concatenate([layer, layer2])
+    layer = TimeDistributed(Dense(dimension_of_hidden_layers, kernel_regularizer=regularizers.l2(0.01), activation='relu'))(input2)
+
     #Apply the LSTM to each layer which passed thourgh dense first
     layer = LSTM(dimension_of_hidden_layers, kernel_regularizer=regularizers.l2(0.01),
                  return_sequences=True, activation='tanh')(layer)
     layer = LSTM(dimension_of_hidden_layers, kernel_regularizer=regularizers.l2(0.01),
                  return_sequences=False, activation='tanh')(layer)
     #Generate encoded configuration and normalize it
-    model = Model(inputs=[input1, input2], outputs=layer)
+    model = Model(inputs=[input2], outputs=layer)
     model.compile(loss='mse', optimizer='adam', metrics=[])
 
     return model, layer
@@ -73,37 +71,29 @@ def model_for_decoder(input):
     #Return the sequence into time distributed dense network
     output = LSTM(dimension_of_hidden_layers,  kernel_regularizer=regularizers.l2(0.005),
                    return_sequences=True, name='lstm_output')(layer)
-    #Last layer, Dense layer before the output prediction and reconstruction of the input
-    output1 = TimeDistributed(Dense(10, activation='relu', kernel_regularizer=regularizers.l2(0.01)))(output)
-    output1 = TimeDistributed(Dense(5, activation='tanh', kernel_regularizer=regularizers.l2(0.01)))(output)
-    output1 = TimeDistributed(Dense(1, activation='linear'), name="hidden_units")(output1)
-    output2 = TimeDistributed(
-        Dense(2 * number_of_parameters_per_layer_glob, activation='relu'))(output)
-    output2 = TimeDistributed(
-        Dense(2 * number_of_parameters_per_layer_glob, activation='tanh'))(output2)
-    output2 = TimeDistributed(Dense(number_of_parameters_per_layer_glob - 1, activation='softmax', activity_regularizer=regularizers.l1(0.1)), name="act_fce")(output2)
-    model = Model(inputs=input,outputs=[output1, output2])
-    model.compile(loss={"hidden_units" : 'mse', "act_fce" : "categorical_crossentropy"}, optimizer='adam', metrics=[])
+    output2 = TimeDistributed(Dense(number_of_parameters_per_layer_glob - 1, activation='softmax', activity_regularizer=regularizers.l1(0.1)), name="act_fce")(output)
+    model = Model(inputs=input,outputs=[output2])
+    model.compile(loss={ "act_fce" : "categorical_crossentropy"}, optimizer='adam', metrics=[])
 
-    return model, output1
+    return model, output2
 
 def encoder_decoder_construct(input1, input2, encoder, decoder):
     #This builds the whole model together
 
-    layer = encoder([input1, input2])
-    output1, output2 = decoder(layer)
-    model = Model(inputs=[input1,input2], outputs=[output1, output2])
+    layer = encoder([input2])
+    output2 = decoder(layer)
+    model = Model(inputs=[input2], outputs=[output2])
     model.compile(loss=[ 'mse',  "categorical_crossentropy"], optimizer='adam', metrics=[])
 
     return model
 def encoder_performance_construct(input1, input2, encoder, decoder):
 
-    layer = encoder([input1, input2])
-    output1, output2 = decoder(layer)
+    layer = encoder([input2])
+    output2 = decoder(layer)
     layer = Dense(15, activation='relu', kernel_regularizer=regularizers.l2(0.01))(layer)
     layer = Dense(10, activation='relu', kernel_regularizer=regularizers.l2(0.01))(layer)
     output3 = Dense(1, activation='linear')(layer)
-    model = Model(inputs=[input1, input2], outputs=[output1,output2,output3])
+    model = Model(inputs=[input2], outputs=[output2,output3])
     model.compile(loss='mse', optimizer='adam', metrics=[])
 
     return model
@@ -149,18 +139,14 @@ def train_on_epoch(model2, x_h, x_h_t , x_fce, x_fce_t, epoch, model = None, dat
         futur_line_perf = cur_line_perf + batch_size
         if model != None:
             if futur_line_perf <= len_of_data_perf:
-                model_loss.append(model.train_on_batch([datax_hidden_perf[cur_line_perf:(futur_line_perf)],
-                                                        datax_fce_perf[cur_line_perf:(futur_line_perf)]],
-                                                       [x_h_2_perf[cur_line_perf:(futur_line_perf)],
-                                                        x_fce_2_perf[cur_line_perf:(futur_line_perf)],
+                model_loss.append(model.train_on_batch([datax_fce_perf[cur_line_perf:(futur_line_perf)]],
+                                                       [x_fce_2_perf[cur_line_perf:(futur_line_perf)],
                                                         datay_perf[cur_line_perf:(futur_line_perf)]
                                                         ]))
                 cur_line_perf = futur_line_perf
             elif cur_line_perf< len_of_data_perf:
-                model_loss.append(model.train_on_batch([datax_hidden_perf[cur_line_perf:(len_of_data_perf)],
-                                                        datax_fce_perf[cur_line_perf:(len_of_data_perf)]],
-                                                       [x_h_2_perf[cur_line_perf:(len_of_data_perf)],
-                                                        x_fce_2_perf[cur_line_perf:(len_of_data_perf)],
+                model_loss.append(model.train_on_batch([datax_fce_perf[cur_line_perf:(len_of_data_perf)]],
+                                                       [x_fce_2_perf[cur_line_perf:(len_of_data_perf)],
                                                         datay_perf[cur_line_perf:(len_of_data_perf)]
                                                         ]))
                 cur_line_perf = len_of_data_perf
@@ -235,7 +221,7 @@ def train_model(dimension_of_decoder, num_of_act_fce1, min_units1, max_units1, m
 
     for i2 in range(0,1):
 
-        encoder_performance.fit([datax_hidden,datax_fce],[datax_hidden_t, datax_fce_t, datay_perf], batch_size=10,epochs=100,validation_data=([datax_hidden_test,datax_fce_test],[datax_hidden_t_test, datax_fce_t_test,datay_perf_test]))
+        encoder_performance.fit([datax_fce],[datax_fce_t, datay_perf], batch_size=10,epochs=100,validation_data=([datax_fce_test],[datax_fce_t_test,datay_perf_test]))
 
 
 

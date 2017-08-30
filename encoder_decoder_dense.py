@@ -53,35 +53,26 @@ def encoded_decoder(decoder, input1, local):
 
 def encoder_model(input1, input2):
     #TimeDistributed Dense layer, for each layer in NN config
-    layer = TimeDistributed(Dense(dimension_of_input1,  kernel_regularizer=regularizers.l2(0.01), activation='relu'))(input1)
-    layer2 = TimeDistributed(Dense(dimension_of_hidden_layers, kernel_regularizer=regularizers.l2(0.01), activation='relu'))(input2)
+    layer = Dense(max_depth_glob*(number_of_parameters_per_layer_glob-1)*2, activation="relu")(input1)
+    layer2 = Dense(max_depth_glob*(1)*2, activation="relu")(input2)
     layer = concatenate([layer, layer2])
-    #Apply the LSTM to each layer which passed thourgh dense first
-    layer = LSTM(dimension_of_hidden_layers, kernel_regularizer=regularizers.l2(0.01),
-                 return_sequences=True, activation='tanh')(layer)
-    layer = LSTM(dimension_of_hidden_layers, kernel_regularizer=regularizers.l2(0.01),
-                 return_sequences=False, activation='tanh')(layer)
+    layer = Dense(max_depth_glob*number_of_parameters_per_layer_glob*2, activation="tanh")(layer)
+    layer = Dense(dimension_of_hidden_layers, activation="tanh")(layer)
     #Generate encoded configuration and normalize it
     model = Model(inputs=[input1, input2], outputs=layer)
-    model.compile(loss='mse', optimizer='adam', metrics=[])
 
     return model, layer
 
 def model_for_decoder(input):
     #Repeat the context vector and feed it at every time step
-    layer = RepeatVector(max_depth_glob)(input) # Get the last output of the GRU and repeats it
-    #Return the sequence into time distributed dense network
-    output = LSTM(dimension_of_hidden_layers,  kernel_regularizer=regularizers.l2(0.005),
-                   return_sequences=True, name='lstm_output')(layer)
-    #Last layer, Dense layer before the output prediction and reconstruction of the input
-    output1 = TimeDistributed(Dense(10, activation='relu', kernel_regularizer=regularizers.l2(0.01)))(output)
-    output1 = TimeDistributed(Dense(5, activation='tanh', kernel_regularizer=regularizers.l2(0.01)))(output)
-    output1 = TimeDistributed(Dense(1, activation='linear'), name="hidden_units")(output1)
-    output2 = TimeDistributed(
-        Dense(2 * number_of_parameters_per_layer_glob, activation='relu'))(output)
-    output2 = TimeDistributed(
-        Dense(2 * number_of_parameters_per_layer_glob, activation='tanh'))(output2)
-    output2 = TimeDistributed(Dense(number_of_parameters_per_layer_glob - 1, activation='softmax', activity_regularizer=regularizers.l1(0.1)), name="act_fce")(output2)
+    layer = Dense(max_depth_glob*number_of_parameters_per_layer_glob*2, activation="tanh")(input)
+    output1 = Dense(max_depth_glob*3, activation='relu', kernel_regularizer=regularizers.l2(0.01))(layer)
+    output1 = Dense(max_depth_glob*2, activation='tanh', kernel_regularizer=regularizers.l2(0.01))(output1)
+    output1 = Dense(max_depth_glob, activation='linear', name="hidden_units")(output1)
+    output2 = Dense(max_depth_glob * number_of_parameters_per_layer_glob, activation='relu')(layer)
+    output2 = Dense(max_depth_glob * number_of_parameters_per_layer_glob, activation='tanh')(output2)
+    output2 = Dense(max_depth_glob*(number_of_parameters_per_layer_glob-1), activation='softmax', activity_regularizer=regularizers.l1(0.1),
+        name="act_fce")(output2)
     model = Model(inputs=input,outputs=[output1, output2])
     model.compile(loss={"hidden_units" : 'mse', "act_fce" : "categorical_crossentropy"}, optimizer='adam', metrics=[])
 
@@ -188,8 +179,8 @@ def train_model(dimension_of_decoder, num_of_act_fce1, min_units1, max_units1, m
 
     # Constructing the model
     # Constructing encoder
-    input1 = Input(shape=(max_depth, num_of_act_fce,))
-    input2 = Input(shape=(max_depth, 1,))
+    input1 = Input(shape=(max_depth*num_of_act_fce,))
+    input2 = Input(shape=(max_depth,))
     base_m, base_m_out = encoder_model(input2, input1)
     encoder_M = base_m
     # Constructing decoder
@@ -197,17 +188,15 @@ def train_model(dimension_of_decoder, num_of_act_fce1, min_units1, max_units1, m
     decoder, decoder_out = model_for_decoder(input)
     decoder_M = decoder
     # Constructing the whole model encoder_decoder
-    input1 = Input(shape=(max_depth, num_of_act_fce,))
-    input2 = Input(shape=(max_depth, 1,))
+    input1 = Input(shape=(max_depth* num_of_act_fce,))
+    input2 = Input(shape=(max_depth,))
     full_model = encoder_decoder_construct(input2, input1, base_m, decoder)
     encoder_decoder = full_model
-    # Construct the decoder_encoder
-    input = Input(shape=(dimension_of_hidden_layers,))
-    decoder_encoder_M = decoder_encoder(decoder, base_m, input)
+
 
     # Constructing a encoder_performance model
-    input1 = Input(shape=(max_depth, num_of_act_fce,))
-    input2 = Input(shape=(max_depth, 1,))
+    input1 = Input(shape=(max_depth*num_of_act_fce,))
+    input2 = Input(shape=(max_depth,))
     encoder_performance = encoder_performance_construct(input2, input1, base_m, decoder)
 
     pkl_file = open('encoder_input2.pkl', 'rb' )
@@ -217,12 +206,20 @@ def train_model(dimension_of_decoder, num_of_act_fce1, min_units1, max_units1, m
 
     data2 = np.loadtxt('performance_list.txt', delimiter=" ")
 
+    #do data hidenned first
+    no_of_training_data_w = data1[0].shape[0]
+    data_h  = np.zeros((no_of_training_data_w, max_depth_glob))
+    data_fce= np.zeros((no_of_training_data_w, max_depth_glob*(number_of_parameters_per_layer_glob -1)))
+    data_h[:,:] = data1[0][:,:,0]
+
+    #do fce
+    for i in range(0, no_of_training_data_w):
+        for i2 in range(0, max_depth_glob):
+            data_fce[i,i2*(number_of_parameters_per_layer_glob-1):(i2+1)*(number_of_parameters_per_layer_glob-1)] = data1[2][i,i2,:]
 
 
 
-    datax_hidden,datax_hidden_test, datax_hidden_t, datax_hidden_t_test,\
-    datax_fce, datax_fce_test, datax_fce_t, datax_fce_t_test = data1[0][0:1000], data1[0][1000:], data1[1][0:1000],\
-                                                           data1[1][1000:], data1[2][0:1000], data1[2][1000:], data1[3][0:1000], data1[3][1000:]
+    datax_hidden,datax_hidden_test, datax_fce, datax_fce_test = data_h[0:1000], data_h[1000:],data_fce[0:1000], data_fce[1000:]
 
     datax_hidden2, datax_hidden_t2, datax_fce2, datax_fce_t2 = create_first_training_data(10000, min_units,
                                                                                       max_units,
@@ -235,7 +232,7 @@ def train_model(dimension_of_decoder, num_of_act_fce1, min_units1, max_units1, m
 
     for i2 in range(0,1):
 
-        encoder_performance.fit([datax_hidden,datax_fce],[datax_hidden_t, datax_fce_t, datay_perf], batch_size=10,epochs=100,validation_data=([datax_hidden_test,datax_fce_test],[datax_hidden_t_test, datax_fce_t_test,datay_perf_test]))
+        encoder_performance.fit([datax_hidden,datax_fce],[datax_hidden, datax_fce, datay_perf], batch_size=10,epochs=100,validation_data=([datax_hidden_test,datax_fce_test],[datax_hidden_test, datax_fce_test,datay_perf_test]))
 
 
 

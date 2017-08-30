@@ -130,9 +130,9 @@ def create_first_training_data(no_of_training_data,min_units, max_units,
     return [datax_hidden, datax_hidden_t, datax_fce, datax_fce_t], structures_to_train
 
 if __name__ == "__main__":
-    X = np.loadtxt('X_basic_task.txt', delimiter=" ")[:500]
-    Y = np.loadtxt('Y_basic_task.txt', delimiter=" ")[:500]
-    test_index = 100
+    X = np.loadtxt('X_basic_task.txt', delimiter=" ")[:440]
+    Y = np.loadtxt('Y_basic_task.txt', delimiter=" ")[:440]
+    test_index = 160
     x, x_test, y, y_test = X[:-test_index], X[-test_index:], Y[:-test_index], Y[-test_index:]
 
     act_fce = ['relu', 'sigmoid']
@@ -150,8 +150,8 @@ if __name__ == "__main__":
     performance_metrics = []
 
     for i in range(0,no_of_training_data):
-        cv_score = loss_nn_dense(for_dense_nn[i],x,y,x_test, y_test, act_fce,'categorical_crossentropy', 'adam', 10)
-        performance_metrics.append(cv_score[0])
+        cv_score = loss_nn_dense(for_dense_nn[i],x,y,x_test, y_test, act_fce,'categorical_crossentropy', 'adam', 20)
+        performance_metrics.append(cv_score)
 
     output = open('performance_list.pkl', 'wb')
     pickle.dump(performance_metrics, output)

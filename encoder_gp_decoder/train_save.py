@@ -71,7 +71,7 @@ def loss_nn_dense(args, x, y, x_test, y_test, act_fce, loss, optimizer, batch_si
     #Loss and optimizer is set by user
     model.compile(loss=loss, optimizer=optimizer, metrics=['accuracy'])
     acc_his = MyCallbacks.AccHistoryEpochTest()
-    early_stopping = EarlyStopping(monitor='val_loss', min_delta=0.0001, patience=150, verbose=0, mode='min')
+    early_stopping = EarlyStopping(monitor='val_loss', min_delta=0.0001, patience=80, verbose=0, mode='min')
     #Batch_size is also set by user
     model.fit(x, y, epochs=300, batch_size=batch_size, validation_data=(x_test, y_test),
               callbacks=[acc_his, early_stopping], shuffle=True)
@@ -130,9 +130,9 @@ def create_first_training_data(no_of_training_data,min_units, max_units,
     return [datax_hidden, datax_hidden_t, datax_fce, datax_fce_t], structures_to_train
 
 if __name__ == "__main__":
-    X = np.loadtxt('X_basic_task.txt', delimiter=" ")[:440]
-    Y = np.loadtxt('Y_basic_task.txt', delimiter=" ")[:440]
-    test_index = 160
+    X = np.loadtxt('X_basic_task.txt', delimiter=" ")
+    Y = np.loadtxt('Y_basic_task.txt', delimiter=" ")
+    test_index = 200
     x, x_test, y, y_test = X[:-test_index], X[-test_index:], Y[:-test_index], Y[-test_index:]
 
     act_fce = ['relu', 'sigmoid']
@@ -143,14 +143,14 @@ if __name__ == "__main__":
 
     to_save_encoder, for_dense_nn = create_first_training_data(no_of_training_data,min_units, max_units,
                                min_depth, max_depth, num_of_act_fce, no_of_parameters_per_layer)
-    output = open('encoder_input2.pkl', 'wb')
+    output = open('encoder_input3.pkl', 'wb')
     pickle.dump(to_save_encoder, output)
     output.close()
 
     performance_metrics = []
 
     for i in range(0,no_of_training_data):
-        cv_score = loss_nn_dense(for_dense_nn[i],x,y,x_test, y_test, act_fce,'categorical_crossentropy', 'adam', 20)
+        cv_score = loss_nn_dense(for_dense_nn[i],x,y,x_test, y_test, act_fce,'categorical_crossentropy', 'adam', 16)
         performance_metrics.append(cv_score)
 
     output = open('performance_list.pkl', 'wb')

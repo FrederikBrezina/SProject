@@ -1,6 +1,5 @@
 import numpy as np
-dataset = np.loadtxt('new.txt', delimiter=" ")
-x = dataset[:, 0:2]
-y = dataset[:, 2:5]
-np.savetxt('X_basic_task.txt', x, delimiter=" ")
-np.savetxt('Y_basic_task.txt', y, delimiter=" ")
+fv = np.array([2,1,3])
+c =np.argsort(fv)
+g = [[2,1],[3,1],[4,1]]
+print(g[[0,1,2],:])

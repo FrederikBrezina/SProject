@@ -26,6 +26,7 @@ max_units = None
 min_depth = None
 num_of_act_fce = None
 dimension_of_output_y = 3
+dimension_of_hidden_layers_out = 4
 
 def decoder_encoder(decoder, encoder, input):
     layer = decoder(input)
@@ -61,6 +62,8 @@ def encoder_model(input1, input2):
                  return_sequences=True, activation='tanh')(layer)
     layer = LSTM(dimension_of_hidden_layers, kernel_regularizer=regularizers.l2(0.01),
                  return_sequences=False, activation='tanh')(layer)
+    layer = Dense(10, activation='relu', kernel_regularizer=regularizers.l2(0.01))(layer)
+    layer = Dense(dimension_of_hidden_layers_out, activation='tanh', kernel_regularizer=regularizers.l2(0.01))(layer)
     #Generate encoded configuration and normalize it
     model = Model(inputs=[input1, input2], outputs=layer)
     model.compile(loss='mse', optimizer='adam', metrics=[])
@@ -93,7 +96,7 @@ def encoder_decoder_construct(input1, input2, encoder, decoder):
     layer = encoder([input1, input2])
     output1, output2 = decoder(layer)
     model = Model(inputs=[input1,input2], outputs=[output1, output2])
-    model.compile(loss=[ 'mse',  "categorical_crossentropy"], optimizer='adam', metrics=[])
+    model.compile(loss=[ 'mse',  "mse"], optimizer='adam', metrics=[],loss_weights=[1.,6000.])
 
     return model
 def encoder_performance_construct(input1, input2, encoder, decoder):
@@ -102,9 +105,9 @@ def encoder_performance_construct(input1, input2, encoder, decoder):
     output1, output2 = decoder(layer)
     layer = Dense(15, activation='relu', kernel_regularizer=regularizers.l2(0.01))(layer)
     layer = Dense(10, activation='relu', kernel_regularizer=regularizers.l2(0.01))(layer)
-    output3 = Dense(1, activation='linear')(layer)
+    output3 = Dense(1, activation='sigmoid')(layer)
     model = Model(inputs=[input1, input2], outputs=[output1,output2,output3])
-    model.compile(loss='mse', optimizer='adam', metrics=[])
+    model.compile(loss='mse', optimizer='adam', metrics=[], loss_weights=[1.,1.,10000.])
 
     return model
 
@@ -136,7 +139,7 @@ def train_on_epoch(model2, x_h, x_h_t , x_fce, x_fce_t, epoch, model = None, dat
         x_fce_2_perf = datax_fce_perf
         x_h_2_perf = datax_hidden_perf
 
-    no_of_batches = int(len_of_data_perf/ batch_size) + 1
+    no_of_batches = int(len_of_data/ batch_size) + 1
 
     cur_line, cur_line_perf = 0, 0
     model_loss, model2_loss = [0], []
@@ -144,6 +147,24 @@ def train_on_epoch(model2, x_h, x_h_t , x_fce, x_fce_t, epoch, model = None, dat
     model_decoder_encoder_loss = []
 
     for i in range(0,  no_of_batches):
+        futur_line = cur_line + batch_size
+        if (futur_line) <= len_of_data:
+            # Train full model
+
+            model2_loss.append(model2.train_on_batch([x_h[cur_line:(futur_line)], x_fce[cur_line:(futur_line)]],
+                                                     [x_h_2[cur_line:(futur_line)], x_fce_2[cur_line:(futur_line)]
+                                                      ]))
+
+
+
+            # Train only encoder
+            cur_line = futur_line
+        elif (cur_line < len_of_data):
+            model2_loss.append(model2.train_on_batch([x_h[cur_line:(len_of_data)], x_fce[cur_line:(len_of_data)]],
+                                                     [x_h_2[cur_line:(len_of_data)], x_fce_2[cur_line:(len_of_data)]]))
+
+
+
 
         #Train the performance model
         futur_line_perf = cur_line_perf + batch_size
@@ -163,11 +184,13 @@ def train_on_epoch(model2, x_h, x_h_t , x_fce, x_fce_t, epoch, model = None, dat
                                                         x_fce_2_perf[cur_line_perf:(len_of_data_perf)],
                                                         datay_perf[cur_line_perf:(len_of_data_perf)]
                                                         ]))
-                cur_line_perf = len_of_data_perf
-                rounds_from_last_train_perf = 0
+                cur_line_perf = 0
+            else:
+                cur_line_perf = 0
 
 
-        print("Epoch #{}: model_full Loss: {}".format(epoch + 1, model_loss[-1]))
+
+        print("Epoch #{}: model_perf Loss: {} model_full Loss:{}".format(epoch + 1, model_loss[-1], model2_loss[-1]))
 
 def train_model(dimension_of_decoder, num_of_act_fce1, min_units1, max_units1, min_depth1, max_depth,
                 no_of_training_data1, no_of_parameters_per_layer, dimension_of_output, reverse_order):
@@ -175,7 +198,7 @@ def train_model(dimension_of_decoder, num_of_act_fce1, min_units1, max_units1, m
     # Setting global variables for the models
     global max_depth_glob, number_of_parameters_per_layer_glob, dimension_of_hidden_layers, encoder_decoder, \
         encoder_performance, no_of_training_data, min_units, max_units, min_depth, \
-        num_of_act_fce, decoder_encoder_M, decoder_M, encoder_M, dimension_of_output_y
+        num_of_act_fce, decoder_encoder_M, decoder_M, encoder_M, dimension_of_output_y, dimension_of_hidden_layers_out
     max_depth_glob = max_depth
     dimension_of_output_y = dimension_of_output
     no_of_training_data, min_units = no_of_training_data1, min_units1
@@ -193,7 +216,7 @@ def train_model(dimension_of_decoder, num_of_act_fce1, min_units1, max_units1, m
     base_m, base_m_out = encoder_model(input2, input1)
     encoder_M = base_m
     # Constructing decoder
-    input = Input(shape=(dimension_of_hidden_layers,))
+    input = Input(shape=(dimension_of_hidden_layers_out,))
     decoder, decoder_out = model_for_decoder(input)
     decoder_M = decoder
     # Constructing the whole model encoder_decoder
@@ -202,7 +225,7 @@ def train_model(dimension_of_decoder, num_of_act_fce1, min_units1, max_units1, m
     full_model = encoder_decoder_construct(input2, input1, base_m, decoder)
     encoder_decoder = full_model
     # Construct the decoder_encoder
-    input = Input(shape=(dimension_of_hidden_layers,))
+    input = Input(shape=(dimension_of_hidden_layers_out,))
     decoder_encoder_M = decoder_encoder(decoder, base_m, input)
 
     # Constructing a encoder_performance model
@@ -210,12 +233,16 @@ def train_model(dimension_of_decoder, num_of_act_fce1, min_units1, max_units1, m
     input2 = Input(shape=(max_depth, 1,))
     encoder_performance = encoder_performance_construct(input2, input1, base_m, decoder)
 
-    pkl_file = open('encoder_input2.pkl', 'rb' )
+    pkl_file = open('encoder_input3.pkl', 'rb' )
 
-    data1 = pickle.load(pkl_file,  encoding='latin1')
+    data1 = pickle.load(pkl_file)
     pkl_file.close()
 
-    data2 = np.loadtxt('performance_list.txt', delimiter=" ")
+
+    pkl_file = open('performance_list.pkl', 'rb')
+
+    data2 = pickle.load(pkl_file)
+    pkl_file.close()
 
 
 
@@ -224,18 +251,28 @@ def train_model(dimension_of_decoder, num_of_act_fce1, min_units1, max_units1, m
     datax_fce, datax_fce_test, datax_fce_t, datax_fce_t_test = data1[0][0:1000], data1[0][1000:], data1[1][0:1000],\
                                                            data1[1][1000:], data1[2][0:1000], data1[2][1000:], data1[3][0:1000], data1[3][1000:]
 
-    datax_hidden2, datax_hidden_t2, datax_fce2, datax_fce_t2 = create_first_training_data(10000, min_units,
+    datax_hidden2, datax_hidden_t2, datax_fce2, datax_fce_t2 = create_first_training_data(300, min_units,
                                                                                       max_units,
                                                                                       min_depth, max_depth,
                                                                                       num_of_act_fce,
-                                                                                      no_of_parameters_per_layer)
-    datay_perf = np.array(data2)
+                                                                                 no_of_parameters_per_layer)
+    data2 = np.array(data2)[:,1]
+    datay_perf = data2
     datay_perf_test = datay_perf[1000:]
     datay_perf = datay_perf[:1000]
+    data2ag, avgag, stdag = normalize_data(data2)
 
     for i2 in range(0,1):
 
-        encoder_performance.fit([datax_hidden,datax_fce],[datax_hidden_t, datax_fce_t, datay_perf], batch_size=10,epochs=100,validation_data=([datax_hidden_test,datax_fce_test],[datax_hidden_t_test, datax_fce_t_test,datay_perf_test]))
+        # encoder_performance.fit([datax_hidden,datax_fce],[datax_hidden_t, datax_fce_t, datay_perf], batch_size=10,epochs=250,validation_data=([datax_hidden_test,datax_fce_test],[datax_hidden_t_test, datax_fce_t_test, datay_perf_test]))
+        # full_model.fit([datax_hidden, datax_fce], [datax_hidden_t, datax_fce_t], batch_size=10,
+        #                         epochs=250, validation_data=(
+        #     [datax_hidden_test, datax_fce_test], [datax_hidden_t_test, datax_fce_t_test]))
+        for epoch in range(0, 250):
+            train_on_epoch(encoder_decoder, datax_hidden2, datax_hidden_t2, datax_fce2, datax_fce_t2, epoch,
+                           encoder_performance, datax_hidden_test,
+                           datax_hidden_t_test, datax_fce_test, datax_fce_t_test,
+                           datay_perf, batch_size=10, reverse_order=True)
 
 
 
@@ -243,17 +280,16 @@ def train_model(dimension_of_decoder, num_of_act_fce1, min_units1, max_units1, m
         encoded_data = encoder_M.predict([datax_hidden, datax_fce])
 
 
-        for i3 in range(0,20):
-            kernel = gp.kernels.Matern(length_scale=(1/(2**i3)))
-            kernel2 = gp.kernels.ConstantKernel(5)
-            kernel = kernel2*kernel
+        for i3 in range(0,1):
+            kernel = gp.kernels.Matern(length_scale=(1/3))
+
             alpha = 1e-7
             model = gp.GaussianProcessRegressor(kernel=kernel,
                                                 alpha=alpha,
                                                 n_restarts_optimizer=20,
                                                 normalize_y=True,)
             xp = np.array(encoded_data)
-            yp = np.array(data2[:1000])
+            yp = np.array(datay_perf)
             model.fit(xp,yp)
             avg = 0
             running_sum_list = []
@@ -268,13 +304,55 @@ def train_model(dimension_of_decoder, num_of_act_fce1, min_units1, max_units1, m
                 mu, sigma = model.predict(to_pred,return_std=True)
                 running_sum = abs(mu - data2[1000 + i])
                 avg += running_sum
-                running_sum_list.append([running_sum, mu, data2[1000 + i], sigma])
+                running_sum_list.append([running_sum, mu, data2[1000 + i], sigma, mu+sigma])
                 print(running_sum_list[-1])
+
             avg = avg / datax_hidden_test.shape[0]
             print(avg, "avg")
-            running_sum_list.append([avg, 0, 0, 0])
+            running_sum_list.append([avg, 0, 0, 0, 0])
             running_sum_list = np.array(running_sum_list)
-            np.savetxt("error_list{},{}.txt".format(i2,i3), running_sum_list)
+            indeces = np.argsort(running_sum_list[:,4])
+            np.savetxt("error_list_final.txt".format(i3), running_sum_list)
+            running_sum_list = running_sum_list[:,2]
+            print(running_sum_list[indeces])
+            print("-----------------------------------------------------------------")
+            kernel = gp.kernels.Matern(length_scale=(1 / 3))
+
+            alpha = 1e-7
+            model = gp.GaussianProcessRegressor(kernel=kernel,
+                                                alpha=alpha,
+                                                n_restarts_optimizer=20,
+                                                normalize_y=False, )
+            xp = np.array(encoded_data)
+            yp = np.array(data2ag[:1000])
+            model.fit(xp, yp)
+            avg = 0
+            running_sum_list = []
+            for i in range(0, datax_hidden_test.shape[0]):
+                to_pred = np.array(encoded_data_test[i])
+                to_pred_2d = np.zeros((1, to_pred.shape[0]))
+                to_pred.reshape(1, -1)
+                to_pred_2d[0, :] = to_pred
+                to_pred = to_pred_2d
+
+                mu, sigma = model.predict(to_pred, return_std=True)
+                mu = mu * stdag + avgag
+                sigma = sigma* stdag
+                running_sum = abs(mu - data2[1000 + i])
+                avg += running_sum
+                running_sum_list.append([running_sum, mu, data2[1000 + i], sigma, mu + sigma])
+                print(running_sum_list[-1])
+
+            avg = avg / datax_hidden_test.shape[0]
+            print(avg, "avg")
+            running_sum_list.append([avg, 0, 0, 0, 0])
+            running_sum_list = np.array(running_sum_list)
+            indeces = np.argsort(running_sum_list[:, 4])
+            np.savetxt("error_list_final.txt".format(i3), running_sum_list)
+            running_sum_list = running_sum_list[:, 2]
+            print(running_sum_list[indeces])
+            sys.exit()
+
 
 def create_bounds(num_of_act_fce, min_units, max_units, depth, max_depth):
     #Creates the bounds for random data which trains the model above
@@ -358,9 +436,26 @@ def serialize_next_sample_for_gp(next_sample, number_of_parameters_per_layer):
 
     return seriliezed_next_sample
 
+def normalize_data(data2):
+    avg = 0
+    length = data2.shape[0]
+    for i in range(0, data2.shape[0]):
+        avg += data2[i]
+    avg /= length
+    std = 0
+    for i in range(0, length):
+        std+= (data2[i] - avg)**2
+    std /= length - 1
+    std = std**0.5
+    g = []
+    for i in range(0, length):
+        g.append((data2[i] - avg)/ std)
+    g= np.array(g)
+    return g, avg, std
 
 
 if __name__ == "__main__":
+    dimension_of_hidden_layers_out = 4
     dimension_of_decoder, num_of_act_fce1, min_units1, max_units1, min_depth1, max_depth,\
     no_of_training_data1, no_of_parameters_per_layer, dimension_of_output, reverse_order = 16, 2, 2, 100, 2, 3, 1000, 3, 3, True
     train_model(dimension_of_decoder, num_of_act_fce1, min_units1, max_units1, min_depth1, max_depth,

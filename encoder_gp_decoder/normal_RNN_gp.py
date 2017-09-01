@@ -71,7 +71,7 @@ def model_for_decoder(input):
     #Last layer, Dense layer before the output prediction and reconstruction of the input
     output1 = TimeDistributed(Dense(10, activation='selu', kernel_regularizer=regularizers.l2(0.005)))(output)
     output1 = TimeDistributed(Dense(1, activation='relu'), name="hidden_units")(output1)
-    output2 = TimeDistributed(Dense(number_of_parameters_per_layer_glob - 1, activation='softmax', activity_regularizer=regularizers.l1(0.01)), name="act_fce")(output)
+    output2 = TimeDistributed(Dense(number_of_parameters_per_layer_glob - 1, activation='softmax', activity_regularizer=regularizers.l1(0.05)), name="act_fce")(output)
     model = Model(inputs=input,outputs=[output1, output2])
     model.compile(loss={"hidden_units" : 'mse', "act_fce" : "categorical_crossentropy"}, optimizer='adam', metrics=[])
 
@@ -83,7 +83,7 @@ def encoder_decoder_construct(input1, input2, encoder, decoder):
     layer = encoder([input1, input2])
     output1, output2 = decoder(layer)
     model = Model(inputs=[input1,input2], outputs=[output1, output2])
-    model.compile(loss=[ 'mse',  "categorical_crossentropy"], optimizer='adam', metrics=[])
+    model.compile(loss=[ 'mse',  "categorical_crossentropy"], optimizer='adam', metrics=[],loss_weights=[1.,3000.])
 
     return model
 def encoder_performance_construct(input1, input2, encoder, decoder):
@@ -92,9 +92,9 @@ def encoder_performance_construct(input1, input2, encoder, decoder):
     output1, output2 = decoder(layer)
     layer = Dense(15, activation='relu', kernel_regularizer=regularizers.l2(0.01))(layer)
     layer = Dense(10, activation='relu', kernel_regularizer=regularizers.l2(0.01))(layer)
-    output3 = Dense(5, activation='tanh', kernel_regularizer=regularizers.l2(0.01))(layer)
+    output3 = Dense(1, activation='sigmoid')(layer)
     model = Model(inputs=[input1, input2], outputs=[output1,output2,output3])
-    model.compile(loss='mse', optimizer='adam', metrics=[])
+    model.compile(loss=[ 'mse',  "categorical_crossentropy", "categorical_crossentropy" ], optimizer='adam', metrics=[], loss_weights=[1.,3000.,1000.])
 
     return model
 
@@ -367,7 +367,7 @@ def train_model(dimension_of_decoder, num_of_act_fce1, min_units1, max_units1,mi
                                                                                       no_of_parameters_per_layer)
 
     #Train the encoder_decoder
-    for epoch in range(0,100):
+    for epoch in range(0,200):
         train_on_epoch(full_model, datax_hidden, datax_hidden_t, datax_fce, datax_fce_t, epoch, batch_size=10,
                        reverse_order=reverse_order)
 

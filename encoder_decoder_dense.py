@@ -53,13 +53,12 @@ def encoded_decoder(decoder, input1, local):
 
 def encoder_model(input1, input2):
     #TimeDistributed Dense layer, for each layer in NN config
-    layer = Dense(max_depth_glob*(number_of_parameters_per_layer_glob-1)*2, activation="relu")(input1)
-    layer2 = Dense(max_depth_glob*(1)*2, activation="relu")(input2)
-    layer = concatenate([layer, layer2])
+    layer = Dense(max_depth_glob*(number_of_parameters_per_layer_glob-1)*2, activation="relu")(input2)
+
     layer = Dense(max_depth_glob*number_of_parameters_per_layer_glob*2, activation="tanh")(layer)
     layer = Dense(dimension_of_hidden_layers, activation="tanh")(layer)
     #Generate encoded configuration and normalize it
-    model = Model(inputs=[input1, input2], outputs=layer)
+    model = Model(inputs=[input2], outputs=layer)
 
     return model, layer
 
@@ -73,28 +72,28 @@ def model_for_decoder(input):
     output2 = Dense(max_depth_glob * number_of_parameters_per_layer_glob, activation='tanh')(output2)
     output2 = Dense(max_depth_glob*(number_of_parameters_per_layer_glob-1), activation='softmax', activity_regularizer=regularizers.l1(0.1),
         name="act_fce")(output2)
-    model = Model(inputs=input,outputs=[output1, output2])
-    model.compile(loss={"hidden_units" : 'mse', "act_fce" : "categorical_crossentropy"}, optimizer='adam', metrics=[])
+    model = Model(inputs=input,outputs=[ output2])
+    model.compile(loss={ "act_fce" : "categorical_crossentropy"}, optimizer='adam', metrics=[])
 
     return model, output1
 
 def encoder_decoder_construct(input1, input2, encoder, decoder):
     #This builds the whole model together
 
-    layer = encoder([input1, input2])
-    output1, output2 = decoder(layer)
-    model = Model(inputs=[input1,input2], outputs=[output1, output2])
+    layer = encoder(input2)
+    output2 = decoder(layer)
+    model = Model(inputs=[input2], outputs=[output1, output2])
     model.compile(loss=[ 'mse',  "categorical_crossentropy"], optimizer='adam', metrics=[])
 
     return model
 def encoder_performance_construct(input1, input2, encoder, decoder):
 
-    layer = encoder([input1, input2])
-    output1, output2 = decoder(layer)
+    layer = encoder([ input2])
+    output2 = decoder(layer)
     layer = Dense(15, activation='relu', kernel_regularizer=regularizers.l2(0.01))(layer)
     layer = Dense(10, activation='relu', kernel_regularizer=regularizers.l2(0.01))(layer)
     output3 = Dense(1, activation='linear')(layer)
-    model = Model(inputs=[input1, input2], outputs=[output1,output2,output3])
+    model = Model(inputs=[ input2], outputs=[output2,output3])
     model.compile(loss='mse', optimizer='adam', metrics=[])
 
     return model
@@ -187,11 +186,7 @@ def train_model(dimension_of_decoder, num_of_act_fce1, min_units1, max_units1, m
     input = Input(shape=(dimension_of_hidden_layers,))
     decoder, decoder_out = model_for_decoder(input)
     decoder_M = decoder
-    # Constructing the whole model encoder_decoder
-    input1 = Input(shape=(max_depth* num_of_act_fce,))
-    input2 = Input(shape=(max_depth,))
-    full_model = encoder_decoder_construct(input2, input1, base_m, decoder)
-    encoder_decoder = full_model
+
 
 
     # Constructing a encoder_performance model
@@ -199,12 +194,15 @@ def train_model(dimension_of_decoder, num_of_act_fce1, min_units1, max_units1, m
     input2 = Input(shape=(max_depth,))
     encoder_performance = encoder_performance_construct(input2, input1, base_m, decoder)
 
-    pkl_file = open('encoder_input2.pkl', 'rb' )
+    pkl_file = open('encoder_input3.pkl', 'rb' )
 
     data1 = pickle.load(pkl_file,  encoding='latin1')
     pkl_file.close()
 
-    data2 = np.loadtxt('performance_list.txt', delimiter=" ")
+    pkl_file = open('performance_list.pkl', 'rb')
+
+    data2 = pickle.load(pkl_file)
+    pkl_file.close()
 
     #do data hidenned first
     no_of_training_data_w = data1[0].shape[0]
@@ -226,24 +224,24 @@ def train_model(dimension_of_decoder, num_of_act_fce1, min_units1, max_units1, m
                                                                                       min_depth, max_depth,
                                                                                       num_of_act_fce,
                                                                                       no_of_parameters_per_layer)
+    data2 = np.array(data2)[:,1]
     datay_perf = np.array(data2)
     datay_perf_test = datay_perf[1000:]
     datay_perf = datay_perf[:1000]
 
     for i2 in range(0,1):
 
-        encoder_performance.fit([datax_hidden,datax_fce],[datax_hidden, datax_fce, datay_perf], batch_size=10,epochs=100,validation_data=([datax_hidden_test,datax_fce_test],[datax_hidden_test, datax_fce_test,datay_perf_test]))
+        encoder_performance.fit([datax_fce],[ datax_fce, datay_perf], batch_size=10,epochs=100,validation_data=([datax_fce_test],[datax_fce_test,datay_perf_test]))
 
 
 
-        encoded_data_test = encoder_M.predict([datax_hidden_test, datax_fce_test])
-        encoded_data = encoder_M.predict([datax_hidden, datax_fce])
+        encoded_data_test = encoder_M.predict([ datax_fce_test])
+        encoded_data = encoder_M.predict([datax_fce])
 
 
         for i3 in range(0,20):
             kernel = gp.kernels.Matern(length_scale=(1/(2**i3)))
-            kernel2 = gp.kernels.ConstantKernel(5)
-            kernel = kernel2*kernel
+
             alpha = 1e-7
             model = gp.GaussianProcessRegressor(kernel=kernel,
                                                 alpha=alpha,

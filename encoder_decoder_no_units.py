@@ -196,7 +196,7 @@ def train_model(dimension_of_decoder, num_of_act_fce1, min_units1, max_units1, m
     input2 = Input(shape=(max_depth, 1,))
     encoder_performance = encoder_performance_construct(input2, input1, base_m, decoder)
 
-    pkl_file = open('encoder_input2.pkl', 'rb' )
+    pkl_file = open('encoder_input3.pkl', 'rb' )
 
     data1 = pickle.load(pkl_file,  encoding='latin1')
     pkl_file.close()

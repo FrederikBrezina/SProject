@@ -106,9 +106,9 @@ def encoder_performance_construct(input1, input2, encoder, decoder):
     output1, output2 = decoder(layer)
     layer = Dense(15, activation='relu', kernel_regularizer=regularizers.l2(0.01))(layer)
     layer = Dense(10, activation='relu', kernel_regularizer=regularizers.l2(0.01))(layer)
-    output3 = Dense(1, activation='sigmoid')(layer)
+    output3 = Dense(4, activation='sigmoid')(layer)
     model = Model(inputs=[input1, input2], outputs=[output1,output2,output3])
-    model.compile(loss=['mse',"categorical_crossentropy","mse"], optimizer='adam', metrics=[], loss_weights=[0.1,1000.,10000.])
+    model.compile(loss="mse", optimizer='adam', metrics=[], loss_weights=[0.1,1000.,10000.])
 
     return model
 
@@ -252,12 +252,12 @@ def train_model(dimension_of_decoder, num_of_act_fce1, min_units1, max_units1, m
     datax_fce, datax_fce_test, datax_fce_t, datax_fce_t_test = data1[0][0:1000], data1[0][1000:], data1[1][0:1000],\
                                                            data1[1][1000:], data1[2][0:1000], data1[2][1000:], data1[3][0:1000], data1[3][1000:]
 
-    datax_hidden2, datax_hidden_t2, datax_fce2, datax_fce_t2 = create_first_training_data(2000, min_units,
+    datax_hidden2, datax_hidden_t2, datax_fce2, datax_fce_t2 = create_first_training_data(1000, min_units,
                                                                                       max_units,
                                                                                       min_depth, max_depth,
                                                                                       num_of_act_fce,
                                                                                  no_of_parameters_per_layer)
-    data2 = np.array(data2)[:,1]
+    data2 = np.array(data2)[:,1:]
     datay_perf = data2
     datay_perf_test = datay_perf[1000:]
     datay_perf = datay_perf[:1000]
@@ -269,7 +269,7 @@ def train_model(dimension_of_decoder, num_of_act_fce1, min_units1, max_units1, m
         # full_model.fit([datax_hidden, datax_fce], [datax_hidden_t, datax_fce_t], batch_size=10,
         #                         epochs=250, validation_data=(
         #     [datax_hidden_test, datax_fce_test], [datax_hidden_t_test, datax_fce_t_test]))
-        for epoch in range(0, 700):
+        for epoch in range(0, 400):
             train_on_epoch(encoder_decoder, datax_hidden2, datax_hidden_t2, datax_fce2, datax_fce_t2, epoch,
                            encoder_performance, datax_hidden[0:100],
                            datax_hidden_t[0:100], datax_fce[0:100], datax_fce_t[0:100],

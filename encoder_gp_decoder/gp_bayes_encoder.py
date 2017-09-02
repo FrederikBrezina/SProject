@@ -12,7 +12,7 @@ from encoder_gp_decoder.normal_RNN_gp import train_model, train_all_models, tran
 
 reverse_order = True
 
-def expected_improvement(x, gaussian_process, loss_optimum, greater_is_better=False, n_params=1):
+def expected_improvement(x, gaussian_process, loss_optimum, greater_is_better=0, n_params=1):
     """ expected_improvement
 
     Expected improvement acquisition function.
@@ -54,7 +54,7 @@ def expected_improvement(x, gaussian_process, loss_optimum, greater_is_better=Fa
     return -1 * expected_improvement
 
 
-def sample_next_hyperparameter(acquisition_func, gaussian_process, evaluated_loss, greater_is_better=False,
+def sample_next_hyperparameter(acquisition_func, gaussian_process, evaluated_loss, greater_is_better=0,
                                bounds=None, n_restarts=30, not_follow_bounds = True):
     """ sample_next_hyperparameter
 
@@ -124,7 +124,7 @@ def sample_next_hyperparameter(acquisition_func, gaussian_process, evaluated_los
 
 
 def bayesian_optimisation(x,y,x_test,y_test, act_fce, loss, optimizer, batch_size, min_depth, max_depth, min_units, max_units, n_iters,  n_pre_samples=5,
-                          gp_params=None, random_search=False, alpha=1e-5, epsilon=1e-7, retrain_model_rounds = 30):
+                          gp_params=None, random_search=False, alpha=1e-5, epsilon=1e-7, retrain_model_rounds = 30, greater_is_better=0):
     """ bayesian_optimisation
 
     Uses Gaussian Processes to optimise the loss function `sample_loss`.
@@ -162,7 +162,7 @@ def bayesian_optimisation(x,y,x_test,y_test, act_fce, loss, optimizer, batch_siz
     y_list = []
     decoded_sanitized_list, performance_metrics_list, NN_configs_total_list = [], [], []
     n_of_act_fce = len(act_fce)
-    dimension_of_hidden_layers = 8  #this is the dimension between encoder decoder, also the dimension in which GP is working on
+    dimension_of_hidden_layers = 6  #this is the dimension between encoder decoder, also the dimension in which GP is working on
     bounds = np.zeros((dimension_of_hidden_layers, 2))
     bounds[:, 0] = -1
     bounds[:, 1] = 1
@@ -171,44 +171,24 @@ def bayesian_optimisation(x,y,x_test,y_test, act_fce, loss, optimizer, batch_siz
     yp_list = []
 
     ##Train encoder decoder
-    encoder, decoder, full_model = train_model(dimension_of_hidden_layers,n_of_act_fce, min_units, max_units,
-                                   min_depth, max_depth,10, n_of_act_fce+1, y.shape[1], reverse_order=reverse_order)
-
-    #Do initial search through the space
-    number_of_examples = 0
-    while number_of_examples < n_pre_samples:
-        #Choose random encoded NN configuration
-        params = np.random.uniform(bounds[:, 0], bounds[:, 1], bounds.shape[0])
-
-        params2 = params.reshape((1,n_params))
-        #Decode the encoded config and sanitize the output
-
-        decoded_sanitized = sanitize_next_sample_for_gp(decoder.predict(params2), n_of_act_fce + 1,
-                                                        min_units, max_units, y.shape[1])
-
-        datax_hidden_perf, datax_hidden_t_perf, datax_fce_perf, datax_fce_t_perf = transform_into_timeseries(
-            [decoded_sanitized,])
-
-        #If depth is smaller than allowed, re do the example
-        if decoded_sanitized[0] < 1:
-
-            continue
-
-        decoded_sanitized_list.append(decoded_sanitized)
-        #Train the configuration pn data
-        encoded_data = encoder.predict([datax_hidden_perf, datax_fce_perf])
-
-        x_list.extend(encoded_data), NN_configs_total_list.append(decoded_sanitized)
+    encoder, decoder, full_model, [datax_hidden_perf, datax_hidden_t_perf,
+                                   datax_fce_perf, datax_fce_t_perf,decoded_sanitized_list,
+                                   serialized_arch_list, performance_metrics_list] = train_model(
+        x, y, x_test, y_test, act_fce,loss, optimizer,
+        dimension_of_hidden_layers, n_of_act_fce, min_units, max_units,
+        min_depth, max_depth, 10, n_of_act_fce + 1, y.shape[1],
+        reverse_order=reverse_order, initial_search=n_pre_samples)
 
 
 
-        serialized_arch_list.append(seriliaze_next_sample_for_loss_fce(decoded_sanitized, n_of_act_fce + 1))
-        performance_metrics = sample_loss(serialized_arch_list[-1], x, y, x_test, y_test, act_fce, loss,
-                                  optimizer, batch_size)
+    encoded_data = encoder.predict([datax_hidden_perf, datax_fce_perf])
 
-        performance_metrics_list.append(performance_metrics)
-        yp_list.append(performance_metrics[0])
-        y_list.append(performance_metrics[0])
+    x_list.extend(encoded_data)
+    NN_configs_total_list = decoded_sanitized_list
+
+    for i in range(0, len(performance_metrics_list)):
+        yp_list.append(performance_metrics_list[greater_is_better])
+        y_list.append(performance_metrics_list[greater_is_better])
 
 
     xp = np.array(x_list)
@@ -222,10 +202,10 @@ def bayesian_optimisation(x,y,x_test,y_test, act_fce, loss, optimizer, batch_siz
         model = gp.GaussianProcessRegressor(**gp_params)
     #Else use default params and Matern kernel
     else:
-        kernel = gp.kernels.Matern(length_scale=0.25, length_scale_bounds=[0,1])
+        kernel = gp.kernels.Matern(length_scale=0.25)
         model = gp.GaussianProcessRegressor(kernel=kernel,
                                             alpha=alpha,
-                                            n_restarts_optimizer=10,
+                                            n_restarts_optimizer=25,
                                             normalize_y=True)
 
     #Now choose next architecture based on knowledge of past results
@@ -233,6 +213,7 @@ def bayesian_optimisation(x,y,x_test,y_test, act_fce, loss, optimizer, batch_siz
         if (n%retrain_model_rounds == 0):
             x_list = retrain_encode_again(NN_configs_total_list,decoded_sanitized_list, performance_metrics_list, encoder)
             xp = np.array(x_list)
+        print("NN_after_intial search: ", n)
 
 
         #Fit, the results into gp
@@ -242,7 +223,7 @@ def bayesian_optimisation(x,y,x_test,y_test, act_fce, loss, optimizer, batch_siz
 
         # Sample next hyperparameter
         next_sample = sample_next_hyperparameter(expected_improvement, model, yp,
-                                                     greater_is_better=False, bounds=bounds, n_restarts=100, not_follow_bounds=False)
+                                                     greater_is_better=greater_is_better, bounds=bounds, n_restarts=100, not_follow_bounds=False)
 
 
         # Duplicates will break the GP. In case of a duplicate, we will randomly sample a next query point.
@@ -272,13 +253,22 @@ def bayesian_optimisation(x,y,x_test,y_test, act_fce, loss, optimizer, batch_siz
 
         #If it does not, do not train, but set the cv_score to very high
         else:
-            if non_sense:
-                cv_score = max(y_list)
-                y_list.append(cv_score)
+            if greater_is_better:
+                if non_sense:
+                    cv_score = min(y_list)
+                    y_list.append(cv_score)
+                else:
+                    cv_score = min(y_list)/2
+                    non_sense = True
+                    y_list.append(cv_score)
             else:
-                cv_score = max(y_list) * 100
-                non_sense = True
-                y_list.append(cv_score)
+                if non_sense:
+                    cv_score = max(y_list)
+                    y_list.append(cv_score)
+                else:
+                    cv_score = max(y_list) * 2
+                    non_sense = True
+                    y_list.append(cv_score)
 
 
         # Update xp and yp
@@ -365,7 +355,7 @@ def retrain_encode_again(NN_config_total_list,decoded_sanitized_list, performanc
 
     encoded_data_list = []
     for i in range(0, int(number_of_configs/batch_size) + 1):
-        if i < int(number_of_configs/batch_size) + 1:
+        if i < int(number_of_configs/batch_size):
             datax_hidden_perf, datax_hidden_t_perf, datax_fce_perf, datax_fce_t_perf = transform_into_timeseries(
                 NN_config_total_list[i*batch_size:(i+1)*batch_size])
         else:

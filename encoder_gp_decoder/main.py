@@ -1,11 +1,10 @@
-import pickle
 import numpy as np
-from encoder_gp_decoder.gp_bayes_encoder import bayesian_optimisation
 import sys, pickle
+from encoder_gp_decoder.gp_bayes_encoder import bayesian_optimisation
 
 def load_task_data(datax, datay, test_number):
-    X = np.loadtxt(datax, delimiter=" ")[:500]
-    Y = np.loadtxt(datay, delimiter=" ")[:500]
+    X = np.loadtxt(datax, delimiter=" ")
+    Y = np.loadtxt(datay, delimiter=" ")
     test_index = test_number
     x, x_test, y, y_test = X[:-test_index], X[-test_index:], Y[:-test_index], Y[-test_index:]
     return x,y,x_test,y_test
@@ -14,9 +13,13 @@ def call_main(loss, optimizer, min_depth, max_depth, min_units, max_units, act_f
               n_presamples, datasetx, datasety, test_number, output,cv_score, batch_size):
     #Load the tasak data
     x, y, x_test, y_test = load_task_data(datasetx, datasety, test_number)
+    #Import function after setting up global values
+
+
     #Find the best architectures
     arch_list, loss_list = bayesian_optimisation(x,y,x_test,y_test, act_fce, loss, optimizer, batch_size, min_depth,
-                                                 max_depth, min_units, max_units, n_iter, n_pre_samples=n_presamples, retrain_model_rounds=30)
+                                                 max_depth, min_units, max_units, n_iter, n_pre_samples=n_presamples,
+                                                 retrain_model_rounds=30, greater_is_better=1)
     #Save the NN_configurations
     output1 = open(output, 'wb')
     pickle.dump(arch_list, output1)
@@ -99,7 +102,7 @@ def command_line_interface():
     output = input()
     ##########################################
     #where to save loss list
-    print('where to save losses acquired for the strcutres')
+    print('where to save losses acquired for the structures')
     cv_score = input()
     ############################################
     print('batch_size?')
@@ -115,6 +118,6 @@ if __name__ == "__main__":
     loss, optimizer, min_depth, max_depth, min_units, max_units, act_fce, n_iter, n_presamples, \
     datasetx, datasety, test_number, output, cv_score, batch_size = 'categorical_crossentropy', 'adam',2, 3, 2, 100, [
          'relu', 'sigmoid'
-        ], 1000, 2, 'X_basic_task.txt', 'Y_basic_task.txt', 100, 'arch.txt', "loss.txt", 10
+        ], 100, 100, 'X_basic_task.txt', 'Y_basic_task.txt', 100, 'arch.txt', "loss.txt", 10
     call_main(loss, optimizer, min_depth, max_depth, min_units, max_units, act_fce, n_iter,
               n_presamples, datasetx, datasety, test_number, output, cv_score,batch_size)

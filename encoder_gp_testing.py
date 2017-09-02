@@ -63,6 +63,7 @@ def encoder_model(input1, input2):
     layer = LSTM(dimension_of_hidden_layers, kernel_regularizer=regularizers.l2(0.01),
                  return_sequences=False, activation='tanh')(layer)
     layer = Dense(10, activation='relu', kernel_regularizer=regularizers.l2(0.01))(layer)
+    layer = Dense(6, activation='relu', kernel_regularizer=regularizers.l2(0.01))(layer)
     layer = Dense(dimension_of_hidden_layers_out, activation='tanh', kernel_regularizer=regularizers.l2(0.01))(layer)
     #Generate encoded configuration and normalize it
     model = Model(inputs=[input1, input2], outputs=layer)
@@ -96,7 +97,7 @@ def encoder_decoder_construct(input1, input2, encoder, decoder):
     layer = encoder([input1, input2])
     output1, output2 = decoder(layer)
     model = Model(inputs=[input1,input2], outputs=[output1, output2])
-    model.compile(loss=[ 'mse',  "mse"], optimizer='adam', metrics=[],loss_weights=[1.,6000.])
+    model.compile(loss=[ 'mse',  "mse"], optimizer='adam', metrics=[],loss_weights=[0.1,4000.])
 
     return model
 def encoder_performance_construct(input1, input2, encoder, decoder):
@@ -107,7 +108,7 @@ def encoder_performance_construct(input1, input2, encoder, decoder):
     layer = Dense(10, activation='relu', kernel_regularizer=regularizers.l2(0.01))(layer)
     output3 = Dense(1, activation='sigmoid')(layer)
     model = Model(inputs=[input1, input2], outputs=[output1,output2,output3])
-    model.compile(loss='mse', optimizer='adam', metrics=[], loss_weights=[1.,1.,10000.])
+    model.compile(loss='mse', optimizer='adam', metrics=[], loss_weights=[0.1,1.,10000.])
 
     return model
 
@@ -251,7 +252,7 @@ def train_model(dimension_of_decoder, num_of_act_fce1, min_units1, max_units1, m
     datax_fce, datax_fce_test, datax_fce_t, datax_fce_t_test = data1[0][0:1000], data1[0][1000:], data1[1][0:1000],\
                                                            data1[1][1000:], data1[2][0:1000], data1[2][1000:], data1[3][0:1000], data1[3][1000:]
 
-    datax_hidden2, datax_hidden_t2, datax_fce2, datax_fce_t2 = create_first_training_data(300, min_units,
+    datax_hidden2, datax_hidden_t2, datax_fce2, datax_fce_t2 = create_first_training_data(2000, min_units,
                                                                                       max_units,
                                                                                       min_depth, max_depth,
                                                                                       num_of_act_fce,
@@ -268,11 +269,11 @@ def train_model(dimension_of_decoder, num_of_act_fce1, min_units1, max_units1, m
         # full_model.fit([datax_hidden, datax_fce], [datax_hidden_t, datax_fce_t], batch_size=10,
         #                         epochs=250, validation_data=(
         #     [datax_hidden_test, datax_fce_test], [datax_hidden_t_test, datax_fce_t_test]))
-        for epoch in range(0, 250):
+        for epoch in range(0, 700):
             train_on_epoch(encoder_decoder, datax_hidden2, datax_hidden_t2, datax_fce2, datax_fce_t2, epoch,
-                           encoder_performance, datax_hidden_test,
-                           datax_hidden_t_test, datax_fce_test, datax_fce_t_test,
-                           datay_perf, batch_size=10, reverse_order=True)
+                           encoder_performance, datax_hidden[0:100],
+                           datax_hidden_t[0:100], datax_fce[0:100], datax_fce_t[0:100],
+                           datay_perf[0:100], batch_size=10, reverse_order=True)
 
 
 
@@ -316,41 +317,7 @@ def train_model(dimension_of_decoder, num_of_act_fce1, min_units1, max_units1, m
             running_sum_list = running_sum_list[:,2]
             print(running_sum_list[indeces])
             print("-----------------------------------------------------------------")
-            kernel = gp.kernels.Matern(length_scale=(1 / 3))
 
-            alpha = 1e-7
-            model = gp.GaussianProcessRegressor(kernel=kernel,
-                                                alpha=alpha,
-                                                n_restarts_optimizer=20,
-                                                normalize_y=False, )
-            xp = np.array(encoded_data)
-            yp = np.array(data2ag[:1000])
-            model.fit(xp, yp)
-            avg = 0
-            running_sum_list = []
-            for i in range(0, datax_hidden_test.shape[0]):
-                to_pred = np.array(encoded_data_test[i])
-                to_pred_2d = np.zeros((1, to_pred.shape[0]))
-                to_pred.reshape(1, -1)
-                to_pred_2d[0, :] = to_pred
-                to_pred = to_pred_2d
-
-                mu, sigma = model.predict(to_pred, return_std=True)
-                mu = mu * stdag + avgag
-                sigma = sigma* stdag
-                running_sum = abs(mu - data2[1000 + i])
-                avg += running_sum
-                running_sum_list.append([running_sum, mu, data2[1000 + i], sigma, mu + sigma])
-                print(running_sum_list[-1])
-
-            avg = avg / datax_hidden_test.shape[0]
-            print(avg, "avg")
-            running_sum_list.append([avg, 0, 0, 0, 0])
-            running_sum_list = np.array(running_sum_list)
-            indeces = np.argsort(running_sum_list[:, 4])
-            np.savetxt("error_list_final.txt".format(i3), running_sum_list)
-            running_sum_list = running_sum_list[:, 2]
-            print(running_sum_list[indeces])
             sys.exit()
 
 
@@ -457,7 +424,7 @@ def normalize_data(data2):
 if __name__ == "__main__":
     dimension_of_hidden_layers_out = 4
     dimension_of_decoder, num_of_act_fce1, min_units1, max_units1, min_depth1, max_depth,\
-    no_of_training_data1, no_of_parameters_per_layer, dimension_of_output, reverse_order = 16, 2, 2, 100, 2, 3, 1000, 3, 3, True
+    no_of_training_data1, no_of_parameters_per_layer, dimension_of_output, reverse_order = 25, 2, 2, 100, 2, 3, 1000, 3, 3, True
     train_model(dimension_of_decoder, num_of_act_fce1, min_units1, max_units1, min_depth1, max_depth,
                 no_of_training_data1, no_of_parameters_per_layer, dimension_of_output, reverse_order)
 

@@ -402,10 +402,10 @@ def train_all_models(datax, datay):
 
     #Do datay separately
     length_of_datax = len(datax)
-    datay_perf = np.zeros((length_of_datax, len(datay[0])))
+    datay_perf = np.zeros((length_of_datax, 1))
     for i in range(0,length_of_datax):
         # Do datay now
-        datay_perf[i, :] = datay[i]
+        datay_perf[i, :] = datay[i][1]
 
     datax_hidden, datax_hidden_t, datax_fce, datax_fce_t = create_first_training_data(no_of_training_data, min_units,
                                                                                       max_units,

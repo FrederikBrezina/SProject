@@ -103,7 +103,7 @@ def encoder_performance_construct(input1, input2, encoder, decoder):
     layer = Dense(10, activation='relu', kernel_regularizer=regularizers.l2(0.01))(layer)
     output3 = Dense(1, activation='sigmoid')(layer)
     model = Model(inputs=[input1, input2], outputs=[output1,output2,output3])
-    model.compile(loss=[ 'mse',  "categorical_crossentropy", "mse" ], optimizer='adam', metrics=[], loss_weights=[0.1,3000.,1000.])
+    model.compile(loss=[ 'mse',  "categorical_crossentropy", "mse" ], optimizer='adam', metrics=[], loss_weights=[0.1,100.,10000.])
 
     return model
 
@@ -402,10 +402,10 @@ def train_all_models(datax, datay):
 
     #Do datay separately
     length_of_datax = len(datax)
-    datay_perf = np.zeros((length_of_datax, len(datay[0])))
+    datay_perf = np.zeros((length_of_datax, 1))
     for i in range(0,length_of_datax):
         # Do datay now
-        datay_perf[i, :] = datay[i]
+        datay_perf[i, :] = datay[i][1]
 
     datax_hidden, datax_hidden_t, datax_fce, datax_fce_t = create_first_training_data(no_of_training_data, min_units,
                                                                                       max_units,

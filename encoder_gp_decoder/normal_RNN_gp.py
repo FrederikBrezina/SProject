@@ -92,7 +92,7 @@ def encoder_decoder_construct(input1, input2, encoder, decoder):
     layer = encoder([input1, input2])
     output1, output2 = decoder(layer)
     model = Model(inputs=[input1,input2], outputs=[output1, output2])
-    model.compile(loss=[ 'mse',  "categorical_crossentropy"], optimizer='adam', metrics=[],loss_weights=[0.1,40000.])
+    model.compile(loss="mse", optimizer='adam', metrics=[],loss_weights=[0.1,4000.])
 
     return model
 def encoder_performance_construct(input1, input2, encoder, decoder):
@@ -103,7 +103,7 @@ def encoder_performance_construct(input1, input2, encoder, decoder):
     layer = Dense(10, activation='relu', kernel_regularizer=regularizers.l2(0.01))(layer)
     output3 = Dense(1, activation='sigmoid')(layer)
     model = Model(inputs=[input1, input2], outputs=[output1,output2,output3])
-    model.compile(loss=[ 'mse',  "categorical_crossentropy", "mse" ], optimizer='adam', metrics=[], loss_weights=[0.1,100.,10000.])
+    model.compile(loss="mse", optimizer='adam', metrics=[], loss_weights=[0.1,10.,1000.])
 
     return model
 
@@ -177,8 +177,8 @@ def train_on_epoch(model2, x_h, x_h_t , x_fce, x_fce_t, epoch, model = None, dat
             else:
                 cur_line_perf = 0
 
-        # print("Epoch #{}: model_full Loss: {}, model_decoder_encoder_loss: {},"
-              #" model_perf_Loss: {}".format(epoch + 1,model2_loss[-1],model_decoder_encoder_loss[-1], model_loss[-1]))
+        print("Epoch #{}: model_full Loss: {}, model_decoder_encoder_loss: {},"
+              " model_perf_Loss: {}".format(epoch + 1,model2_loss[-1],model_decoder_encoder_loss[-1], model_loss[-1]))
 
 
 def create_bounds(num_of_act_fce, min_units, max_units, depth, max_depth):
@@ -388,7 +388,7 @@ def train_model(x, y, x_test, y_test, act_fce,loss, optimizer, dimension_of_deco
 
     performance_metrics_arry = np.array(performance_metrics)
     #Train the encoder_decoder
-    for epoch in range(0,500):
+    for epoch in range(0,600):
         train_on_epoch(full_model, datax_hidden, datax_hidden_t, datax_fce, datax_fce_t, epoch,encoder_performance,
                        datax_hidden2,datax_hidden_t2,datax_fce2,datax_fce_t2, performance_metrics_arry[:,1], batch_size=10,
                        reverse_order=reverse_order)
@@ -402,16 +402,16 @@ def train_all_models(datax, datay):
 
     #Do datay separately
     length_of_datax = len(datax)
-    datay_perf = np.zeros((length_of_datax, 1))
+    datay_perf = np.zeros((length_of_datax, len(datay[0])))
     for i in range(0,length_of_datax):
         # Do datay now
-        datay_perf[i, :] = datay[i][1]
+        datay_perf[i, :] = datay[i]
 
     datax_hidden, datax_hidden_t, datax_fce, datax_fce_t = create_first_training_data(no_of_training_data, min_units,
                                                                                       max_units,
                                                                                       min_depth, max_depth_glob,
                                                                                       num_of_act_fce,
-                                                                                      number_of_parameters_per_layer_glob)
+                                                                                      number_of_parameters_per_layer_glob, train=False)
 
     for epoch in range(0, 100):
         train_on_epoch(encoder_decoder, datax_hidden, datax_hidden_t, datax_fce, datax_fce_t, epoch,

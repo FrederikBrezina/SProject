@@ -92,7 +92,7 @@ def encoder_decoder_construct(input1, input2, encoder, decoder):
     layer = encoder([input1, input2])
     output1, output2 = decoder(layer)
     model = Model(inputs=[input1,input2], outputs=[output1, output2])
-    model.compile(loss=[ 'mse',  "categorical_crossentropy"], optimizer='adam', metrics=[],loss_weights=[1.,3000.])
+    model.compile(loss=[ 'mse',  "categorical_crossentropy"], optimizer='adam', metrics=[],loss_weights=[0.1,40000.])
 
     return model
 def encoder_performance_construct(input1, input2, encoder, decoder):
@@ -103,7 +103,7 @@ def encoder_performance_construct(input1, input2, encoder, decoder):
     layer = Dense(10, activation='relu', kernel_regularizer=regularizers.l2(0.01))(layer)
     output3 = Dense(1, activation='sigmoid')(layer)
     model = Model(inputs=[input1, input2], outputs=[output1,output2,output3])
-    model.compile(loss=[ 'mse',  "categorical_crossentropy", "categorical_crossentropy" ], optimizer='adam', metrics=[], loss_weights=[1.,3000.,1000.])
+    model.compile(loss=[ 'mse',  "categorical_crossentropy", "mse" ], optimizer='adam', metrics=[], loss_weights=[0.1,3000.,1000.])
 
     return model
 

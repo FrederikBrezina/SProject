@@ -160,7 +160,7 @@ def bayesian_optimisation(x,y,x_test,y_test, act_fce, loss, optimizer, batch_siz
     x_list = []
     serialized_arch_list = []
     y_list = []
-    decoded_sanitized_list, performance_metrics_list, NN_configs_total_list = [], [], []
+    decoded_sanitized_list, performance_metrics_list,  = [], []
     n_of_act_fce = len(act_fce)
     dimension_of_hidden_layers = 4  #this is the dimension between encoder decoder, also the dimension in which GP is working on
     bounds = np.zeros((dimension_of_hidden_layers, 2))
@@ -179,12 +179,12 @@ def bayesian_optimisation(x,y,x_test,y_test, act_fce, loss, optimizer, batch_siz
         min_depth, max_depth, 1200, n_of_act_fce + 1, y.shape[1],
         reverse_order=reverse_order, initial_search=n_pre_samples)
 
-
+    assert len(performance_metrics_list) == len(decoded_sanitized_list)
 
     encoded_data = encoder.predict([datax_hidden_perf, datax_fce_perf])
 
     x_list.extend(encoded_data)
-    NN_configs_total_list.extend(decoded_sanitized_list)
+
 
 
 
@@ -213,10 +213,10 @@ def bayesian_optimisation(x,y,x_test,y_test, act_fce, loss, optimizer, batch_siz
     #Now choose next architecture based on knowledge of past results
     n=0
     while n <n_iters:
-        if (n%retrain_model_rounds == 0):
+        if (n%retrain_model_rounds == retrain_model_rounds-1):
             print(len(decoded_sanitized_list), len(performance_metrics_list))
 
-            x_list = retrain_encode_again(NN_configs_total_list,decoded_sanitized_list, performance_metrics_list, encoder)
+            x_list = retrain_encode_again(decoded_sanitized_list, performance_metrics_list, encoder)
             xp = np.array(x_list)
         print("NN_after_intial search: ", n)
         print(len(x_list), len(performance_metrics_list))
@@ -243,7 +243,7 @@ def bayesian_optimisation(x,y,x_test,y_test, act_fce, loss, optimizer, batch_siz
 
         encoded_data = encoder.predict([datax_hidden_perf, datax_fce_perf])
 
-        x_list.extend(encoded_data), NN_configs_total_list.append(decoded_sanitized)
+        x_list.extend(encoded_data)
 
         #If it satisfies the depth requirements, proceed to train it
         if decoded_sanitized[0] > 0:
@@ -353,7 +353,7 @@ def sanitize_next_sample_for_gp(next_sample, number_of_parameters_per_layer, min
 
     return seriliezed_next_sample
 
-def retrain_encode_again(NN_config_total_list,decoded_sanitized_list, performance_metrics_list, encoder):
+def retrain_encode_again(decoded_sanitized_list, performance_metrics_list, encoder):
     train_all_models(decoded_sanitized_list, performance_metrics_list)
 
     encoded_data_list = []

@@ -8,7 +8,7 @@ from scipy.stats import norm
 from scipy.optimize import minimize
 from encoder_gp_decoder.dense_loss import loss_nn_dense
 from encoder_gp_decoder.normal_RNN_gp import train_model, train_all_models, transform_into_timeseries
-
+import sys
 
 reverse_order = True
 
@@ -162,7 +162,7 @@ def bayesian_optimisation(x,y,x_test,y_test, act_fce, loss, optimizer, batch_siz
     y_list = []
     decoded_sanitized_list, performance_metrics_list, NN_configs_total_list = [], [], []
     n_of_act_fce = len(act_fce)
-    dimension_of_hidden_layers = 6  #this is the dimension between encoder decoder, also the dimension in which GP is working on
+    dimension_of_hidden_layers = 4  #this is the dimension between encoder decoder, also the dimension in which GP is working on
     bounds = np.zeros((dimension_of_hidden_layers, 2))
     bounds[:, 0] = -1
     bounds[:, 1] = 1
@@ -184,11 +184,13 @@ def bayesian_optimisation(x,y,x_test,y_test, act_fce, loss, optimizer, batch_siz
     encoded_data = encoder.predict([datax_hidden_perf, datax_fce_perf])
 
     x_list.extend(encoded_data)
-    NN_configs_total_list = decoded_sanitized_list
+    NN_configs_total_list.extend(decoded_sanitized_list)
+
+
 
     for i in range(0, len(performance_metrics_list)):
-        yp_list.append(performance_metrics_list[greater_is_better])
-        y_list.append(performance_metrics_list[greater_is_better])
+        yp_list.append(performance_metrics_list[i][greater_is_better])
+        y_list.append(performance_metrics_list[i][greater_is_better])
 
 
     xp = np.array(x_list)
@@ -209,12 +211,15 @@ def bayesian_optimisation(x,y,x_test,y_test, act_fce, loss, optimizer, batch_siz
                                             normalize_y=True)
 
     #Now choose next architecture based on knowledge of past results
-    for n in range(0,n_iters):
+    n=0
+    while n <n_iters:
         if (n%retrain_model_rounds == 0):
+            print(len(decoded_sanitized_list), len(performance_metrics_list))
+
             x_list = retrain_encode_again(NN_configs_total_list,decoded_sanitized_list, performance_metrics_list, encoder)
             xp = np.array(x_list)
         print("NN_after_intial search: ", n)
-
+        print(len(x_list), len(performance_metrics_list))
 
         #Fit, the results into gp
         model.fit(xp, yp)
@@ -247,9 +252,10 @@ def bayesian_optimisation(x,y,x_test,y_test, act_fce, loss, optimizer, batch_siz
             cv_score = sample_loss(serialized_arch_list[-1], x, y, x_test, y_test, act_fce, loss, optimizer, batch_size)
             decoded_sanitized_list.append(decoded_sanitized)
             performance_metrics_list.append(cv_score)
-            cv_score = cv_score[0]
+            cv_score = cv_score[greater_is_better]
             yp_list.append(cv_score)
             y_list.append(cv_score)
+            n += 1
 
         #If it does not, do not train, but set the cv_score to very high
         else:
@@ -350,19 +356,12 @@ def sanitize_next_sample_for_gp(next_sample, number_of_parameters_per_layer, min
 def retrain_encode_again(NN_config_total_list,decoded_sanitized_list, performance_metrics_list, encoder):
     train_all_models(decoded_sanitized_list, performance_metrics_list)
 
-    batch_size = 10
-    number_of_configs = len(NN_config_total_list)
-
     encoded_data_list = []
-    for i in range(0, int(number_of_configs/batch_size) + 1):
-        if i < int(number_of_configs/batch_size):
-            datax_hidden_perf, datax_hidden_t_perf, datax_fce_perf, datax_fce_t_perf = transform_into_timeseries(
-                NN_config_total_list[i*batch_size:(i+1)*batch_size])
-        else:
-            datax_hidden_perf, datax_hidden_t_perf, datax_fce_perf, datax_fce_t_perf = transform_into_timeseries(
-                NN_config_total_list[i*batch_size:number_of_configs])
-        encoded_data = encoder.predict([datax_hidden_perf, datax_fce_perf])
-        encoded_data_list.extend(encoded_data)
+    datax_hidden_perf, datax_hidden_t_perf, datax_fce_perf, datax_fce_t_perf = transform_into_timeseries(
+        decoded_sanitized_list[:])
+
+    encoded_data = encoder.predict([datax_hidden_perf, datax_fce_perf])
+    encoded_data_list.extend(encoded_data)
     return encoded_data_list
 
 

@@ -177,8 +177,7 @@ def train_on_epoch(model2, x_h, x_h_t , x_fce, x_fce_t, epoch, model = None, dat
             else:
                 cur_line_perf = 0
 
-        print("Epoch #{}: model_full Loss: {}, model_decoder_encoder_loss: {},"
-              " model_perf_Loss: {}".format(epoch + 1,model2_loss[-1],model_decoder_encoder_loss[-1], model_loss[-1]))
+        print("Epoch #{}: model_full Loss: {}, model_perf_Loss: {}".format(epoch + 1,model2_loss[-1], model_loss[-1]))
 
 
 def create_bounds(num_of_act_fce, min_units, max_units, depth, max_depth):
@@ -402,6 +401,7 @@ def train_all_models(datax, datay):
 
     #Do datay separately
     length_of_datax = len(datax)
+    assert length_of_datax == len(datay)
     datay_perf = np.zeros((length_of_datax, 1))
     for i in range(0,length_of_datax):
         # Do datay now

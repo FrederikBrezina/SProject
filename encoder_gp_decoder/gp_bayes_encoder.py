@@ -9,6 +9,7 @@ from scipy.optimize import minimize
 from encoder_gp_decoder.dense_loss import loss_nn_dense
 from encoder_gp_decoder.normal_RNN_gp import train_model, train_all_models, transform_into_timeseries
 import sys
+import pickle
 
 reverse_order = True
 
@@ -255,6 +256,10 @@ def bayesian_optimisation(x,y,x_test,y_test, act_fce, loss, optimizer, batch_siz
             cv_score = cv_score[greater_is_better]
             yp_list.append(cv_score)
             y_list.append(cv_score)
+            np.savetxt("performance1.txt", y_list[170:])
+            output = open('arch_list.pkl', 'wb')
+            pickle.dump(serialized_arch_list[170:], output)
+            output.close()
             n += 1
 
         #If it does not, do not train, but set the cv_score to very high
@@ -325,6 +330,7 @@ def sanitize_next_sample_for_gp(next_sample, number_of_parameters_per_layer, min
             temp = round(next_sample[0][0,i ,0])
 
             if (temp < 0.5) and (i==0):
+                print(next_sample[0][0,:,0])
                 return np.zeros((number_of_parameters_per_layer))
             #If it predicts less than 0.5 units than this means the NN config reached its depth
             elif temp < 0.5:

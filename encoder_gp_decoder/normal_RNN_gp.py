@@ -79,9 +79,9 @@ def model_for_decoder(input):
     output = LSTM(dimension_of_hidden_layers,  kernel_regularizer=regularizers.l2(0.005),
                    return_sequences=True, name='lstm_output')(layer)
     #Last layer, Dense layer before the output prediction and reconstruction of the input
-    output1 = TimeDistributed(Dense(10, activation='selu', kernel_regularizer=regularizers.l2(0.005)))(output)
+    output1 = TimeDistributed(Dense(10, activation='relu', kernel_regularizer=regularizers.l2(0.005)))(output)
     output1 = TimeDistributed(Dense(1, activation='relu'), name="hidden_units")(output1)
-    output2 = TimeDistributed(Dense(number_of_parameters_per_layer_glob - 1, activation='softmax', activity_regularizer=regularizers.l1(0.05)), name="act_fce")(output)
+    output2 = TimeDistributed(Dense(number_of_parameters_per_layer_glob - 1, activation='softmax', activity_regularizer=regularizers.l1(0.1)), name="act_fce")(output)
     model = Model(inputs=input,outputs=[output1, output2])
     model.compile(loss={"hidden_units" : 'mse', "act_fce" : "categorical_crossentropy"}, optimizer='adam', metrics=[])
 
@@ -407,7 +407,7 @@ def train_model(x, y, x_test, y_test, act_fce,loss, optimizer, dimension_of_deco
     # performance_metrics_arry = np.array(performance_metrics)
     #################################################
     performance_metrics = []
-    performance_metrics_arry = np.array(data2)[:170,1]
+    performance_metrics_arry = np.array(data2)[:170,:]
     for i in range(performance_metrics_arry.shape[0]):
         performance_metrics.append(np.array(data2)[i,:])
     ####################################################

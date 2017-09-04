@@ -6,7 +6,7 @@ from keras.layers.local import LocallyConnected1D
 import numpy as np
 import sys
 from encoder_gp_decoder.dense_loss import loss_nn_dense
-from encoder_gp_decoder.gp_bayes_encoder import sanitize_next_sample_for_gp, seriliaze_next_sample_for_loss_fce
+
 import pickle
 
 
@@ -327,6 +327,7 @@ def transform_into_timeseries(datax):
 
 def train_model(x, y, x_test, y_test, act_fce,loss, optimizer, dimension_of_decoder, num_of_act_fce1, min_units1, max_units1,min_depth1, max_depth,
                 no_of_training_data1, no_of_parameters_per_layer,dimension_of_output, reverse_order, initial_search = 100):
+    from encoder_gp_decoder.gp_bayes_encoder import sanitize_next_sample_for_gp, seriliaze_next_sample_for_loss_fce
     #Callable function from outside to train the model
     #Setting global variables for the models
     global max_depth_glob, number_of_parameters_per_layer_glob, dimension_of_hidden_layers, encoder_decoder, \

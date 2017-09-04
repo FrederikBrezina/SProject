@@ -257,7 +257,7 @@ def train_model(dimension_of_decoder, num_of_act_fce1, min_units1, max_units1, m
                                                                                       min_depth, max_depth,
                                                                                       num_of_act_fce,
                                                                                  no_of_parameters_per_layer)
-    data2 =np.array(data2)[:,1]
+    data2 =np.array(data2)[:4,1]
     datay_perf = data2
     datay_perf_test = datay_perf[1000:]
     datay_perf = datay_perf[:1000]

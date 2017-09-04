@@ -6,6 +6,7 @@ from keras.layers.local import LocallyConnected1D
 import numpy as np
 import sys
 from encoder_gp_decoder.dense_loss import loss_nn_dense
+from encoder_gp_decoder.gp_bayes_encoder import sanitize_next_sample_for_gp, seriliaze_next_sample_for_loss_fce
 import pickle
 
 
@@ -393,8 +394,12 @@ def train_model(x, y, x_test, y_test, act_fce,loss, optimizer, dimension_of_deco
     pkl_file.close()
 
     datax_hidden2, datax_hidden_t2, \
-    datax_fce2, datax_fce_t2 = data1[0][0:170], data1[1][0:170], data1[2][0:170], \
-                                                               data1[3][0:170]
+    datax_fce2, datax_fce_t2 = data1[0][0:170], data1[1][0:170], data1[2][0:170], data1[3][0:170]
+
+    sanitized_list, for_dense_nn = [],[]
+    for i in range(170):
+        sanitized_list.append(sanitize_next_sample_for_gp([datax_hidden_t2, datax_fce_t2],no_of_parameters_per_layer,min_units,max_units,dimension_of_output_y))
+        for_dense_nn.append(seriliaze_next_sample_for_loss_fce(sanitized_list,number_of_parameters_per_layer_glob))
 
     #############################################################################################
     # performance_metrics = []

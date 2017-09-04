@@ -97,7 +97,7 @@ def encoder_decoder_construct(input1, input2, encoder, decoder):
     layer = encoder([input1, input2])
     output1, output2 = decoder(layer)
     model = Model(inputs=[input1,input2], outputs=[output1, output2])
-    model.compile(loss=[ 'mse',  "mse"], optimizer='adam', metrics=[],loss_weights=[0.1,400000.])
+    model.compile(loss=[ 'mse',  "categorical_crossentropy"], optimizer='adam', metrics=[],loss_weights=[0.1,4000000.])
 
     return model
 def encoder_performance_construct(input1, input2, encoder, decoder):
@@ -106,9 +106,9 @@ def encoder_performance_construct(input1, input2, encoder, decoder):
     output1, output2 = decoder(layer)
     layer = Dense(15, activation='relu', kernel_regularizer=regularizers.l2(0.01))(layer)
     layer = Dense(10, activation='relu', kernel_regularizer=regularizers.l2(0.01))(layer)
-    output3 = Dense(4, activation='sigmoid')(layer)
+    output3 = Dense(1, activation='sigmoid')(layer)
     model = Model(inputs=[input1, input2], outputs=[output1,output2,output3])
-    model.compile(loss="mse", optimizer='adam', metrics=[], loss_weights=[0.1,1000.,10000.])
+    model.compile(loss=["mse","categorical_crossentropy",'mse'], optimizer='adam', metrics=[], loss_weights=[0.1,1000.,100000.])
 
     return model
 
@@ -257,7 +257,7 @@ def train_model(dimension_of_decoder, num_of_act_fce1, min_units1, max_units1, m
                                                                                       min_depth, max_depth,
                                                                                       num_of_act_fce,
                                                                                  no_of_parameters_per_layer)
-    data2 = np.array(data2)[:,1:]
+    data2 = np.array(data2)[:,1]
     datay_perf = data2
     datay_perf_test = datay_perf[1000:]
     datay_perf = datay_perf[:1000]
@@ -269,28 +269,28 @@ def train_model(dimension_of_decoder, num_of_act_fce1, min_units1, max_units1, m
         # full_model.fit([datax_hidden, datax_fce], [datax_hidden_t, datax_fce_t], batch_size=10,
         #                         epochs=250, validation_data=(
         #     [datax_hidden_test, datax_fce_test], [datax_hidden_t_test, datax_fce_t_test]))
-        for epoch in range(0, 400):
+        for epoch in range(0, 250):
             train_on_epoch(encoder_decoder, datax_hidden2, datax_hidden_t2, datax_fce2, datax_fce_t2, epoch,
-                           encoder_performance, datax_hidden[0:100],
-                           datax_hidden_t[0:100], datax_fce[0:100], datax_fce_t[0:100],
-                           datay_perf[0:100], batch_size=10, reverse_order=True)
+                           encoder_performance, datax_hidden[0:200],
+                           datax_hidden_t[0:200], datax_fce[0:200], datax_fce_t[0:200],
+                           datay_perf[0:200], batch_size=2, reverse_order=True)
 
 
 
         encoded_data_test = encoder_M.predict([datax_hidden_test, datax_fce_test])
-        encoded_data = encoder_M.predict([datax_hidden, datax_fce])
+        encoded_data = encoder_M.predict([datax_hidden[:200], datax_fce[:200]])
 
 
         for i3 in range(0,1):
             kernel = gp.kernels.Matern(length_scale=(1/3))
 
-            alpha = 1e-7
+            alpha = 0.05
             model = gp.GaussianProcessRegressor(kernel=kernel,
                                                 alpha=alpha,
-                                                n_restarts_optimizer=20,
+                                                n_restarts_optimizer=35,
                                                 normalize_y=True,)
             xp = np.array(encoded_data)
-            yp = np.array(datay_perf)
+            yp = np.array(datay_perf[:200])
             model.fit(xp,yp)
             avg = 0
             running_sum_list = []

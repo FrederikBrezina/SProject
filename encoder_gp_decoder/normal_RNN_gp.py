@@ -314,7 +314,7 @@ def transform_into_timeseries(datax):
             steps += 1
 
         #Transpose it, for reverse order
-        for steps2 in range(0, steps):
+        for steps2 in range(0, max_depth_glob):
             datax_hidden_perf[i, steps2, :] = datax_hidden_t_perf[i, max_depth - steps2 - 1, :]
             datax_fce_perf[i, steps2, :] = datax_fce_t_perf[i, max_depth - steps2 - 1, :]
 

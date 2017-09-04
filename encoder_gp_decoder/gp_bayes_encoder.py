@@ -124,7 +124,7 @@ def sample_next_hyperparameter(acquisition_func, gaussian_process, evaluated_los
 
 
 def bayesian_optimisation(x,y,x_test,y_test, act_fce, loss, optimizer, batch_size, min_depth, max_depth, min_units, max_units, n_iters,  n_pre_samples=5,
-                          gp_params=None, random_search=False, alpha=1e-5, epsilon=1e-7, retrain_model_rounds = 30, greater_is_better=0):
+                          gp_params=None, random_search=False, alpha=1e-5, epsilon=1e-7, retrain_model_rounds = 1000, greater_is_better=1):
     """ bayesian_optimisation
 
     Uses Gaussian Processes to optimise the loss function `sample_loss`.
@@ -264,7 +264,7 @@ def bayesian_optimisation(x,y,x_test,y_test, act_fce, loss, optimizer, batch_siz
                     cv_score = min(y_list)
                     y_list.append(cv_score)
                 else:
-                    cv_score = min(y_list)/2
+                    cv_score = min(y_list)
                     non_sense = True
                     y_list.append(cv_score)
             else:
@@ -272,7 +272,7 @@ def bayesian_optimisation(x,y,x_test,y_test, act_fce, loss, optimizer, batch_siz
                     cv_score = max(y_list)
                     y_list.append(cv_score)
                 else:
-                    cv_score = max(y_list) * 2
+                    cv_score = max(y_list)
                     non_sense = True
                     y_list.append(cv_score)
 

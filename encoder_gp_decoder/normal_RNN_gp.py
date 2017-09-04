@@ -6,6 +6,7 @@ from keras.layers.local import LocallyConnected1D
 import numpy as np
 import sys
 from encoder_gp_decoder.dense_loss import loss_nn_dense
+import pickle
 
 
 from keras.layers.wrappers import TimeDistributed
@@ -380,14 +381,36 @@ def train_model(x, y, x_test, y_test, act_fce,loss, optimizer, dimension_of_deco
                                                                                           min_depth, max_depth,
                                                                                           num_of_act_fce,
                                                                                           no_of_parameters_per_layer, train=True)
-    performance_metrics = []
-    for i in range(0,len(for_dense_nn)):
-        cv_score = loss_nn_dense(for_dense_nn[i],x,y,x_test, y_test, act_fce,loss, optimizer, 16)
-        performance_metrics.append(cv_score)
-        assert len(performance_metrics) == i+1
-        print("NN_in_intial search_____: ", i+1)
+    ############################################################################################
+    pkl_file = open('encoder_input3.pkl', 'rb')
 
-    performance_metrics_arry = np.array(performance_metrics)
+    data1 = pickle.load(pkl_file)
+    pkl_file.close()
+
+    pkl_file = open('performance_list.pkl', 'rb')
+
+    data2 = pickle.load(pkl_file)
+    pkl_file.close()
+
+    datax_hidden2, datax_hidden_t2, \
+    datax_fce2, datax_fce_t2 = data1[0][0:170], data1[1][0:170], data1[2][0:170], \
+                                                               data1[3][0:170]
+
+    #############################################################################################
+    # performance_metrics = []
+    # for i in range(0,len(for_dense_nn)):
+    #     cv_score = loss_nn_dense(for_dense_nn[i],x,y,x_test, y_test, act_fce,loss, optimizer, 16)
+    #     performance_metrics.append(cv_score)
+    #     assert len(performance_metrics) == i+1
+    #     print("NN_in_intial search_____: ", i+1)
+    #
+    # performance_metrics_arry = np.array(performance_metrics)
+    #################################################
+    performance_metrics = []
+    performance_metrics_arry = np.array(data2)[:170,1]
+    for i in range(performance_metrics_arry.shape[0]):
+        performance_metrics.append(np.array(data2)[i,:])
+    ####################################################
     #Train the encoder_decoder
     for epoch in range(0,300):
         train_on_epoch(full_model, datax_hidden, datax_hidden_t, datax_fce, datax_fce_t, epoch,encoder_performance,

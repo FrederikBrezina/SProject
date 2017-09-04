@@ -399,8 +399,9 @@ def train_model(x, y, x_test, y_test, act_fce,loss, optimizer, dimension_of_deco
 
     sanitized_list, for_dense_nn = [],[]
     for i in range(170):
-        sanitized_list.append(sanitize_next_sample_for_gp([datax_hidden_t2[i], datax_fce_t2[i]],no_of_parameters_per_layer,min_units,max_units,dimension_of_output_y))
-        for_dense_nn.append(seriliaze_next_sample_for_loss_fce(sanitized_list,number_of_parameters_per_layer_glob))
+
+        sanitized_list.append(sanitize_next_sample_for_gp([datax_hidden_t2[i:i+1,:,:], datax_fce_t2[i:i+1,:,:]],no_of_parameters_per_layer,min_units,max_units,dimension_of_output_y))
+        for_dense_nn.append(seriliaze_next_sample_for_loss_fce(sanitized_list[-1],number_of_parameters_per_layer_glob))
 
     #############################################################################################
     # performance_metrics = []

@@ -116,7 +116,7 @@ def set_trainable(model, trainable=False):
 
 def train_on_epoch(model2, x_h, x_h_t , x_fce, x_fce_t, epoch, model = None, datax_hidden_perf = None,
                    datax_hidden_t_perf = None, datax_fce_perf = None, datax_fce_t_perf = None,
-                   datay_perf = None,batch_size = 10, reverse_order = True):
+                   datay_perf = None,batch_size = 11, reverse_order = True):
 
     len_of_data = x_fce.shape[0]
     len_of_data_perf = None

@@ -183,6 +183,7 @@ def bayesian_optimisation(x,y,x_test,y_test, act_fce, loss, optimizer, batch_siz
     assert len(performance_metrics_list) == len(decoded_sanitized_list)
 
     encoded_data = encoder.predict([datax_hidden_perf, datax_fce_perf])
+    assert len(encoded_data) == len(performance_metrics_list)
 
     x_list.extend(encoded_data)
 
@@ -220,7 +221,7 @@ def bayesian_optimisation(x,y,x_test,y_test, act_fce, loss, optimizer, batch_siz
             x_list = retrain_encode_again(decoded_sanitized_list, performance_metrics_list, encoder)
             xp = np.array(x_list)
         print("NN_after_intial search: ", n)
-        print(len(x_list), len(performance_metrics_list))
+        print(len(x_list), len(performance_metrics_list), len(y_list), yp.shape[0])
 
         #Fit, the results into gp
         model.fit(xp, yp)
@@ -367,6 +368,7 @@ def retrain_encode_again(decoded_sanitized_list, performance_metrics_list, encod
         decoded_sanitized_list[:])
 
     encoded_data = encoder.predict([datax_hidden_perf, datax_fce_perf])
+    assert len(encoded_data) == len(decoded_sanitized_list)
     encoded_data_list.extend(encoded_data)
     return encoded_data_list
 

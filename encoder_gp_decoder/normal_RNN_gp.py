@@ -160,13 +160,14 @@ def train_on_epoch(model2, x_h, x_h_t , x_fce, x_fce_t, epoch, model = None, dat
         #Train the performance model
         futur_line_perf = cur_line_perf + batch_size
         if model != None:
-            if futur_line <= len_of_data_perf:
+            if futur_line_perf <= len_of_data_perf:
                 model_loss.append(model.train_on_batch([datax_hidden_perf[cur_line_perf:(futur_line_perf)],
                                                         datax_fce_perf[cur_line_perf:(futur_line_perf)]],
                                                        [x_h_2_perf[cur_line_perf:(futur_line_perf)],
                                                         x_fce_2_perf[cur_line_perf:(futur_line_perf)],
                                                         datay_perf[cur_line_perf:(futur_line_perf)]
                                                         ]))
+
                 cur_line_perf = futur_line_perf
             elif cur_line_perf< len_of_data_perf:
                 model_loss.append(model.train_on_batch([datax_hidden_perf[cur_line_perf:(len_of_data_perf)],
@@ -416,7 +417,7 @@ def train_model(x, y, x_test, y_test, act_fce,loss, optimizer, dimension_of_deco
     performance_metrics = []
     performance_metrics_arry = np.array(data2)[:170,:]
     for i in range(performance_metrics_arry.shape[0]):
-        performance_metrics.append(np.array(data2)[i,:])
+        performance_metrics.append(performance_metrics_arry[i,:])
     ####################################################
     #Train the encoder_decoder
     for epoch in range(0,300):

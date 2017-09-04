@@ -103,7 +103,7 @@ def encoder_performance_construct(input1, input2, encoder, decoder):
     layer = Dense(10, activation='relu', kernel_regularizer=regularizers.l2(0.01))(layer)
     output3 = Dense(1, activation='sigmoid')(layer)
     model = Model(inputs=[input1, input2], outputs=[output1,output2,output3])
-    model.compile(loss=["mse","categorical_crossentropy","mse"], optimizer='adam', metrics=[], loss_weights=[0.1,100.,10000.])
+    model.compile(loss=["mse","categorical_crossentropy","mse"], optimizer='adam', metrics=[], loss_weights=[0.1,100.,40000.])
 
     return model
 
@@ -248,8 +248,7 @@ def create_first_training_data(no_of_training_data,min_units, max_units,
         if train:
             x, x2, sanitized_example = serialize_next_sample_for_gp(np.random.uniform(bounds[:, 0], bounds[:, 1], bounds.shape[0]),
                                              no_of_parameters_per_layer, train)
-            structures_to_train.append(x2)
-            sanitized_example_list.append(sanitized_example)
+
         else:
             x = serialize_next_sample_for_gp(np.random.uniform(bounds[:, 0], bounds[:, 1], bounds.shape[0]),
                                          no_of_parameters_per_layer, train)
@@ -261,7 +260,9 @@ def create_first_training_data(no_of_training_data,min_units, max_units,
             continue
 
         structures.append(x)
-
+        if train:
+            structures_to_train.append(x2)
+            sanitized_example_list.append(sanitized_example)
 
 
         bit_count = 0
@@ -380,14 +381,15 @@ def train_model(x, y, x_test, y_test, act_fce,loss, optimizer, dimension_of_deco
                                                                                           num_of_act_fce,
                                                                                           no_of_parameters_per_layer, train=True)
     performance_metrics = []
-    for i in range(0,initial_search):
+    for i in range(0,len(for_dense_nn)):
         cv_score = loss_nn_dense(for_dense_nn[i],x,y,x_test, y_test, act_fce,loss, optimizer, 16)
         performance_metrics.append(cv_score)
-        print("NN_in_intial search_____: ", i)
+        assert len(performance_metrics) == i+1
+        print("NN_in_intial search_____: ", i+1)
 
     performance_metrics_arry = np.array(performance_metrics)
     #Train the encoder_decoder
-    for epoch in range(0,600):
+    for epoch in range(0,300):
         train_on_epoch(full_model, datax_hidden, datax_hidden_t, datax_fce, datax_fce_t, epoch,encoder_performance,
                        datax_hidden2,datax_hidden_t2,datax_fce2,datax_fce_t2, performance_metrics_arry[:,1], batch_size=10,
                        reverse_order=reverse_order)

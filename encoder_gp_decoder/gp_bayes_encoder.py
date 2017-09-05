@@ -177,7 +177,7 @@ def bayesian_optimisation(x,y,x_test,y_test, act_fce, loss, optimizer, batch_siz
                                    serialized_arch_list, performance_metrics_list] = train_model(
         x, y, x_test, y_test, act_fce,loss, optimizer,
         dimension_of_hidden_layers, n_of_act_fce, min_units, max_units,
-        min_depth, max_depth, 1200, n_of_act_fce + 1, y.shape[1],
+        min_depth, max_depth, 3000, n_of_act_fce + 1, y.shape[1],
         reverse_order=reverse_order, initial_search=n_pre_samples)
 
     assert len(performance_metrics_list) == len(decoded_sanitized_list)
@@ -331,18 +331,15 @@ def sanitize_next_sample_for_gp(next_sample, number_of_parameters_per_layer, min
             temp = round(next_sample[0][0,i ,0])
 
             if (temp < 0.5) and (i==0):
-                print(next_sample[0][0,:,0])
                 return np.zeros((number_of_parameters_per_layer))
             #If it predicts less than 0.5 units than this means the NN config reached its depth
             elif temp < 0.5:
-                #Hardcode the dimension of output
-                seriliezed_next_sample[(i-1) * number_of_parameters_per_layer] = dimension_of_out_put
                 #Return the shortened example
                 seriliezed_next_sample = seriliezed_next_sample[:i * number_of_parameters_per_layer]
                 return seriliezed_next_sample
 
             #If the depth is maximum hardcode the dimension of output
-            if i == depth - 1:
+            if i == 0:
                 temp = dimension_of_out_put
             seriliezed_next_sample[i * number_of_parameters_per_layer] = temp
 

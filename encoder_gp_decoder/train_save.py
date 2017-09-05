@@ -5,6 +5,7 @@ import MyCallbacks
 import HelpFunctions as hp
 from keras.callbacks import EarlyStopping
 import pickle
+import sys
 max_depth_glob = 0
 def create_bounds(num_of_act_fce, min_units, max_units, depth, max_depth):
     #Creates the bounds for random data which trains the model above
@@ -19,6 +20,7 @@ def create_bounds(num_of_act_fce, min_units, max_units, depth, max_depth):
         for j in range(1, num_of_act_fce +1):
             bounds[i * (num_of_act_fce + 1) + j , 0] = 0
             bounds[i * (num_of_act_fce + 1) + j, 1] = 1
+
 
     return bounds
 
@@ -40,11 +42,11 @@ def serialize_next_sample_for_gp(next_sample, number_of_parameters_per_layer):
         index = next_sample[(i * number_of_parameters_per_layer) + 1: (i + 1) * number_of_parameters_per_layer].index(
                 max(next_sample[(i * number_of_parameters_per_layer) + 1: (i + 1) * number_of_parameters_per_layer]))
         to_train_serialized[i * 2 + 1] = index
-        for fce in range(1, number_of_parameters_per_layer):
+        for fce in range(0, number_of_parameters_per_layer-1):
             if index == fce:
-                seriliezed_next_sample[i * number_of_parameters_per_layer + fce] = 1
+                seriliezed_next_sample[i * number_of_parameters_per_layer + fce + 1] = 1
             else:
-                seriliezed_next_sample[i * number_of_parameters_per_layer + fce] = 0
+                seriliezed_next_sample[i * number_of_parameters_per_layer + fce + 1] = 0
     for i in range(number_of_layers, max_depth_glob):
         for i2 in range(0, number_of_parameters_per_layer):
             seriliezed_next_sample[i* number_of_parameters_per_layer + i2] = 0
@@ -100,11 +102,14 @@ def create_first_training_data(no_of_training_data,min_units, max_units,
     structures_to_train = []
     while i < no_of_training_data:
         depth = int(
-            round(np.random.random() * (max_depth - min_depth + 1) * (1 - epsilon) + (min_depth - 0.5 + (epsilon*(max_depth - min_depth + 2 )))))
+            round(np.random.random() * (max_depth - min_depth + 1) * (1 - epsilon) + (min_depth - 0.5)))
 
         bounds = create_bounds(num_of_act_fce, min_units, max_units, depth, max_depth)
+
         x, x2 = serialize_next_sample_for_gp(np.random.uniform(bounds[:, 0], bounds[:, 1], bounds.shape[0]),
                                          no_of_parameters_per_layer)
+        print(x)
+
         flag = False
         for i2 in range(0, len(structures)):
             if np.array_equal(structures[i2], x):
@@ -127,6 +132,7 @@ def create_first_training_data(no_of_training_data,min_units, max_units,
             datax_hidden_t[i, steps, :] = datax_hidden[i, max_depth - steps - 1, :]
             datax_fce_t[i, steps, :] = datax_fce[i, max_depth - steps - 1, :]
         i += 1
+
     return [datax_hidden, datax_hidden_t, datax_fce, datax_fce_t], structures_to_train
 
 if __name__ == "__main__":
@@ -137,7 +143,7 @@ if __name__ == "__main__":
 
     act_fce = ['relu', 'sigmoid']
     no_of_training_data, min_units, max_units, min_depth,\
-    max_depth, num_of_act_fce, no_of_parameters_per_layer = 1100, 2, 100, 2, 3, 2, 3
+    max_depth, num_of_act_fce, no_of_parameters_per_layer = 250, 2, 100, 2, 3, 2, 3
     global max_depth_glob
     max_depth_glob = max_depth
 

@@ -5,9 +5,11 @@ from keras.layers import Input, Dense, LSTM, RepeatVector, concatenate, Flatten
 from keras import regularizers
 from keras.layers.local import LocallyConnected1D
 import numpy as np
-
+from scipy.stats import norm
 import sklearn.gaussian_process as gp
-
+from sklearn.decomposition import PCA
+import matplotlib.pyplot as plt
+from scipy.spatial.distance import euclidean
 import sys
 from keras.layers.wrappers import TimeDistributed
 
@@ -97,7 +99,7 @@ def encoder_decoder_construct(input1, input2, encoder, decoder):
     layer = encoder([input1, input2])
     output1, output2 = decoder(layer)
     model = Model(inputs=[input1,input2], outputs=[output1, output2])
-    model.compile(loss=[ 'mse',  "categorical_crossentropy"], optimizer='adam', metrics=[],loss_weights=[0.1,4000000.])
+    model.compile(loss="mse", optimizer='adam', metrics=[],loss_weights=[0.1,1000.])
 
     return model
 def encoder_performance_construct(input1, input2, encoder, decoder):
@@ -108,7 +110,7 @@ def encoder_performance_construct(input1, input2, encoder, decoder):
     layer = Dense(10, activation='relu', kernel_regularizer=regularizers.l2(0.01))(layer)
     output3 = Dense(1, activation='sigmoid')(layer)
     model = Model(inputs=[input1, input2], outputs=[output1,output2,output3])
-    model.compile(loss=["mse","categorical_crossentropy",'mse'], optimizer='adam', metrics=[], loss_weights=[0.1,1000.,100000.])
+    model.compile(loss="mse", optimizer='adam', metrics=[], loss_weights=[0.1,100.,100000.])
 
     return model
 
@@ -143,9 +145,9 @@ def train_on_epoch(model2, x_h, x_h_t , x_fce, x_fce_t, epoch, model = None, dat
     no_of_batches = int(len_of_data/ batch_size) + 1
 
     cur_line, cur_line_perf = 0, 0
-    model_loss, model2_loss = [0], []
+    model_loss, model2_loss = [0], [0]
     rounds_from_last_train_perf = 0
-    model_decoder_encoder_loss = []
+    model_decoder_encoder_loss = [0]
 
     for i in range(0,  no_of_batches):
         futur_line = cur_line + batch_size
@@ -249,18 +251,18 @@ def train_model(dimension_of_decoder, num_of_act_fce1, min_units1, max_units1, m
 
 
     datax_hidden,datax_hidden_test, datax_hidden_t, datax_hidden_t_test,\
-    datax_fce, datax_fce_test, datax_fce_t, datax_fce_t_test = data1[0][0:1000], data1[0][1000:], data1[1][0:1000],\
-                                                           data1[1][1000:], data1[2][0:1000], data1[2][1000:], data1[3][0:1000], data1[3][1000:]
+    datax_fce, datax_fce_test, datax_fce_t, datax_fce_t_test = data1[0][0:200], data1[0][200:], data1[1][0:200],\
+                                                           data1[1][200:], data1[2][0:200], data1[2][200:], data1[3][0:200], data1[3][200:]
 
     datax_hidden2, datax_hidden_t2, datax_fce2, datax_fce_t2 = create_first_training_data(1000, min_units,
                                                                                       max_units,
                                                                                       min_depth, max_depth,
                                                                                       num_of_act_fce,
                                                                                  no_of_parameters_per_layer)
-    data2 =np.array(data2)[:4,1]
+    data2 =np.array(data2)[:,1]
     datay_perf = data2
-    datay_perf_test = datay_perf[1000:]
-    datay_perf = datay_perf[:1000]
+    datay_perf_test = datay_perf[200:]
+    datay_perf = datay_perf[:200]
     data2ag, avgag, stdag = normalize_data(data2)
 
     for i2 in range(0,1):
@@ -269,16 +271,33 @@ def train_model(dimension_of_decoder, num_of_act_fce1, min_units1, max_units1, m
         # full_model.fit([datax_hidden, datax_fce], [datax_hidden_t, datax_fce_t], batch_size=10,
         #                         epochs=250, validation_data=(
         #     [datax_hidden_test, datax_fce_test], [datax_hidden_t_test, datax_fce_t_test]))
-        for epoch in range(0, 250):
+
+
+
+        for epoch in range(0, 200):
             train_on_epoch(encoder_decoder, datax_hidden2, datax_hidden_t2, datax_fce2, datax_fce_t2, epoch,
-                           encoder_performance, datax_hidden[0:200],
-                           datax_hidden_t[0:200], datax_fce[0:200], datax_fce_t[0:200],
-                           datay_perf[0:200], batch_size=2, reverse_order=True)
-
-
+                           encoder_performance, datax_hidden[0:150],
+                           datax_hidden_t[0:150], datax_fce[0:150], datax_fce_t[0:150],
+                           datay_perf[0:150], batch_size=10, reverse_order=True)
 
         encoded_data_test = encoder_M.predict([datax_hidden_test, datax_fce_test])
-        encoded_data = encoder_M.predict([datax_hidden[:200], datax_fce[:200]])
+        encoded_data = encoder_M.predict([datax_hidden, datax_fce])
+        print(encoded_data_test)
+
+        regularized = [encoded_data[-1]]
+        datay_perf_list = [datay_perf[-1]]
+        for i in range(0, len(encoded_data) - 1):
+            check = True
+            for i2 in range(i + 1, len(encoded_data)):
+                dist = euclidean(encoded_data[i], encoded_data[i2])
+                if dist < 0.0000001:
+                    check = False
+            if check:
+                regularized.append(encoded_data[i])
+                datay_perf_list.append(datay_perf[i])
+        encoded_data = regularized
+        datay_perf = datay_perf_list
+
 
 
         for i3 in range(0,1):
@@ -289,11 +308,15 @@ def train_model(dimension_of_decoder, num_of_act_fce1, min_units1, max_units1, m
                                                 alpha=alpha,
                                                 n_restarts_optimizer=35,
                                                 normalize_y=True,)
-            xp = np.array(encoded_data)
-            yp = np.array(datay_perf[:200])
+            actual_points = len(encoded_data)
+            print("how many points without duplication",actual_points)
+            xp = np.array(encoded_data[:150])
+            yp = np.array(datay_perf)[:150]
             model.fit(xp,yp)
             avg = 0
             running_sum_list = []
+
+            loss_optimum = max(datay_perf)
             for i in range(0, datax_hidden_test.shape[0]):
                 to_pred  = np.array(encoded_data_test[i])
                 to_pred_2d = np.zeros((1,to_pred.shape[0]))
@@ -301,25 +324,47 @@ def train_model(dimension_of_decoder, num_of_act_fce1, min_units1, max_units1, m
                 to_pred_2d[0,:] = to_pred
                 to_pred = to_pred_2d
 
-
                 mu, sigma = model.predict(to_pred,return_std=True)
-                running_sum = abs(mu - data2[1000 + i])
+                with np.errstate(divide='ignore'):
+                    Z = (mu - loss_optimum) / sigma
+                    expected_improvement = (mu - loss_optimum) * norm.cdf(Z) + sigma * norm.pdf(Z)
+                    expected_improvement[sigma == 0.0] = 0.0
+
+                running_sum = abs(mu - data2[200 + i])
                 avg += running_sum
-                running_sum_list.append([running_sum, mu, data2[1000 + i], sigma, mu+sigma])
+                running_sum_list.append([running_sum, mu, data2[200 + i], sigma, mu+sigma, expected_improvement])
                 print(running_sum_list[-1])
 
             avg = avg / datax_hidden_test.shape[0]
             print(avg, "avg")
-            running_sum_list.append([avg, 0, 0, 0, 0])
             running_sum_list = np.array(running_sum_list)
-            indeces = np.argsort(running_sum_list[:,4])
             np.savetxt("error_list_final.txt".format(i3), running_sum_list)
-            running_sum_list = running_sum_list[:,2]
-            print(running_sum_list[indeces])
+
+
+            #Expected improvement
+            indeces = np.argsort(running_sum_list[:,5])
+            running_sum_listex = running_sum_list[:,2]
+            running_sum_listex = running_sum_listex[indeces]
+            print(running_sum_listex)
+            running_sum_listex1 = moving_average(running_sum_listex,10)
+            running_sum_listex2 = moving_average(running_sum_listex, 25)
+            plt.plot(running_sum_listex1)
+            plt.show()
+            plt.plot(running_sum_listex2)
+            plt.show()
             print("-----------------------------------------------------------------")
 
             sys.exit()
 
+def moving_average(array, ran):
+    running_sum_list = []
+    for i in range(0, array.shape[0] - ran + 1):
+        run_sum = 0
+        for i2 in range(ran):
+            run_sum += array[i + i2]
+        run_sum /= ran
+        running_sum_list.append(run_sum)
+    return running_sum_list
 
 def create_bounds(num_of_act_fce, min_units, max_units, depth, max_depth):
     #Creates the bounds for random data which trains the model above
@@ -391,11 +436,11 @@ def serialize_next_sample_for_gp(next_sample, number_of_parameters_per_layer):
         #Chooses the activation function
         index = next_sample[(i * number_of_parameters_per_layer) + 1: (i + 1) * number_of_parameters_per_layer].index(
                 max(next_sample[(i * number_of_parameters_per_layer) + 1: (i + 1) * number_of_parameters_per_layer]))
-        for fce in range(1, number_of_parameters_per_layer):
+        for fce in range(0, number_of_parameters_per_layer-1):
             if index == fce:
-                seriliezed_next_sample[i * number_of_parameters_per_layer + fce] = 1
+                seriliezed_next_sample[i * number_of_parameters_per_layer + fce+1] = 1
             else:
-                seriliezed_next_sample[i * number_of_parameters_per_layer + fce] = 0
+                seriliezed_next_sample[i * number_of_parameters_per_layer + fce+1] = 0
     for i in range(number_of_layers, max_depth_glob):
         for i2 in range(0, number_of_parameters_per_layer):
             seriliezed_next_sample[i* number_of_parameters_per_layer + i2] = 0

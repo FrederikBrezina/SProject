@@ -1,360 +1,453 @@
-from keras.models import Model
-from keras.layers import Input, Dense, LSTM, RepeatVector, concatenate
-from keras.layers.normalization import BatchNormalization
-from keras import regularizers
-from keras.layers.local import LocallyConnected1D
-
 import numpy as np
+from sklearn.decomposition import PCA
+import matplotlib.pyplot as plt
+from scipy.spatial.distance import euclidean
+import pickle
+def seriliaze_next_sample_for_loss_fce(next_sample, number_of_parameters_per_layer):
+    ###Translate the array into array of alternating numbers.
+    ###The alternating numbers are number of hidden units in layer, the index of activation in act_fce array
+    ###Act fce array is the default array or the one given to through the command line interface
 
-from keras.layers.wrappers import TimeDistributed
-
-# Set global variables
-dimension_of_hidden_layers = 0
-max_depth_glob = 0
-number_of_parameters_per_layer_glob = 0
-dimension_of_input1 = 2
-encoder_decoder = None
-encoder_performance = None
-encoder = None
-decoder = None
-no_of_training_data, min_units = None, None
-max_units = None
-min_depth = None
-num_of_act_fce = None
-
-
-def encoder_input(input1, input2, encoder):
-    layer = TimeDistributed(LocallyConnected1D(number_of_parameters_per_layer_glob - 1, 1, kernel_initializer='ones',
-                                               bias_initializer='zeros'))(input2)
-    output = encoder([input1, layer])
-    model = Model(inputs=[input1, input2], outputs=output)
-    return model
-
-
-def full_model_input(input1, input2, encoder_input, decoder):
-    layer = encoder_input([input1, input2])
-    output1, output2 = decoder(layer)
-    model = Model(inputs=[input1, input2], outputs=[output1, output2])
-    model.compile(loss=['mse', "categorical_crossentropy"], optimizer='adam', metrics=[])
-    return model
-
-
-def encoder_model(input1, input2):
-    # TimeDistributed Dense layer, for each layer in NN config
-    layer = TimeDistributed(Dense(dimension_of_input1, kernel_regularizer=regularizers.l2(0.01)))(input1)
-    layer2 = TimeDistributed(Dense(dimension_of_hidden_layers, kernel_regularizer=regularizers.l2(0.01)))(input2)
-    layer = concatenate([layer, layer2])
-    # Apply the LSTM to each layer which passed thourgh dense first
-    layer = LSTM(dimension_of_hidden_layers, kernel_regularizer=regularizers.l2(0.01),
-                 return_sequences=False)(layer)
-    # Generate encoded configuration and normalize it
-    layer = BatchNormalization()(layer)
-    model = Model(inputs=[input1, input2], outputs=layer)
-
-    return model, layer
-
-
-def model_for_decoder(input):
-    # Repeat the context vector and feed it at every time step
-    layer = RepeatVector(max_depth_glob)(input)  # Get the last output of the GRU and repeats it
-    # Return the sequence into time distributed dense network
-    output = LSTM(dimension_of_hidden_layers, kernel_regularizer=regularizers.l2(0.01),
-                  return_sequences=True, name='lstm_output')(layer)
-    # Last layer, Dense layer before the output prediction and reconstruction of the input
-    output1 = TimeDistributed(Dense(10, activation='selu', kernel_regularizer=regularizers.l2(0.01)))(output)
-    output1 = TimeDistributed(Dense(1, activation='relu'), name="hidden_units")(output1)
-    output2 = TimeDistributed(Dense(number_of_parameters_per_layer_glob - 1, activation='sigmoid'), name="act_fce")(
-        output)
-    model = Model(inputs=input, outputs=[output1, output2])
-    model.compile(loss={"hidden_units": 'mse', "act_fce": "categorical_crossentropy"}, optimizer='adam', metrics=[])
-
-    return model, output1
-
-
-def encoder_decoder_construct(input1, input2, encoder, decoder):
-    # This builds the whole model together
-
-    layer = encoder([input1, input2])
-    output1, output2 = decoder(layer)
-    model = Model(inputs=[input1, input2], outputs=[output1, output2])
-    model.compile(loss=['mse', "categorical_crossentropy"], optimizer='adam', metrics=[])
-
-    return model
-
-
-def encoder_performance_construct(input1, input2, encoder, decoder):
-    layer = encoder([input1, input2])
-    output1, output2 = decoder(layer)
-    layer = Dense(15, activation='relu', kernel_regularizer=regularizers.l2(0.01))(layer)
-    layer = Dense(10, activation='relu', kernel_regularizer=regularizers.l2(0.01))(layer)
-    output3 = Dense(5, activation='tanh', kernel_regularizer=regularizers.l2(0.01))(layer)
-    model = Model(inputs=[input1, input2], outputs=[output1, output2, output3])
-    model.compile(loss='mse', optimizer='adam', metrics=[])
-
-    return model
-
-
-def set_trainable(model, trainable=False):
-    model.trainable = trainable
-    for layer in model.layers:
-        layer.trainable = trainable
-
-
-def train_on_epoch(model2, x_h, x_h_t, x_fce, x_fce_t, epoch, model=None, datax_hidden_perf=None,
-                   datax_hidden_t_perf=None, datax_fce_perf=None, datax_fce_t_perf=None,
-                   datay_perf=None, batch_size=10, reverse_order=True):
-    len_of_data = x_fce.shape[0]
-    len_of_data_perf = None
-    if model != None:
-        len_of_data_perf = datax_hidden_perf.shape[0]
-
-    if reverse_order:
-        x_fce_2 = x_fce_t
-        x_h_2 = x_h_t
-        x_fce_2_perf = datax_fce_t_perf
-        x_h_2_perf = datax_hidden_t_perf
-    else:
-        x_fce_2 = x_fce
-        x_h_2 = x_h
-        x_fce_2_perf = datax_fce_perf
-        x_h_2_perf = datax_hidden_perf
-
-    no_of_batches = int(len_of_data / batch_size) + 1
-
-    cur_line, cur_line_perf = 0, 0
-    model_loss, model2_loss = [0], []
-    rounds_from_last_train_perf = 0
-
-    for i in range(0, no_of_batches):
-        futur_line = cur_line + batch_size
-        if (futur_line) <= len_of_data:
-            model2_loss.append(model2.train_on_batch([x_h[cur_line:(futur_line)], x_fce[cur_line:(futur_line)]],
-                                                     [x_h_2[cur_line:(futur_line)], x_fce_2[cur_line:(futur_line)]
-                                                      ]))
-            cur_line = futur_line
-        elif (cur_line < len_of_data):
-            model2_loss.append(model2.train_on_batch([x_h[cur_line:(len_of_data)], x_fce[cur_line:(len_of_data)]],
-                                                     [x_h_2[cur_line:(len_of_data)], x_fce_2[cur_line:(len_of_data)]]))
-
-        # Train the performance model
-        futur_line_perf = cur_line_perf + batch_size
-        if model != None:
-            if futur_line <= len_of_data_perf:
-                model_loss.append(model.train_on_batch([datax_hidden_perf[cur_line_perf:(futur_line_perf)],
-                                                        datax_fce_perf[cur_line_perf:(futur_line_perf)]],
-                                                       [x_h_2_perf[cur_line_perf:(futur_line_perf)],
-                                                        x_fce_2_perf[cur_line_perf:(futur_line_perf)],
-                                                        datay_perf[cur_line_perf:(futur_line_perf)]
-                                                        ]))
-                cur_line_perf = futur_line_perf
-            elif cur_line_perf < len_of_data_perf:
-                model_loss.append(model.train_on_batch([datax_hidden_perf[cur_line_perf:(len_of_data_perf)],
-                                                        datax_fce_perf[cur_line_perf:(len_of_data_perf)]],
-                                                       [x_h_2_perf[cur_line_perf:(len_of_data_perf)],
-                                                        x_fce_2_perf[cur_line_perf:(len_of_data_perf)],
-                                                        datay_perf[cur_line_perf:(len_of_data_perf)]
-                                                        ]))
-                cur_line_perf = len_of_data_perf
-                rounds_from_last_train_perf = 0
-            else:
-                rounds_from_last_train_perf += 1
-                if (rounds_from_last_train_perf * batch_size > 50) and (
-                                rounds_from_last_train_perf * batch_size > 10 * len_of_data_perf) \
-                        and rounds_from_last_train_perf > 15:
-                    cur_line_perf = 0
-
-        print("Epoch #{}: model_full Loss: {}, model_perf_Loss: {}".format(epoch + 1, model2_loss[-1], model_loss[-1]))
-
-
-def create_bounds(num_of_act_fce, min_units, max_units, depth, max_depth):
-    # Creates the bounds for random data which trains the model above
-    bounds = np.zeros(((max_depth) * (1 + num_of_act_fce), 2))
-
-    for i in range(max_depth - depth, max_depth):
-        bounds[i * (num_of_act_fce + 1), 0] = min_units
-        bounds[i * (num_of_act_fce + 1), 1] = max_units
-        for j in range(1, num_of_act_fce + 1):
-            bounds[i * (num_of_act_fce + 1) + j, 0] = 0
-            bounds[i * (num_of_act_fce + 1) + j, 1] = 1
-
-    return bounds
-
-
-def serialize_next_sample_for_gp(next_sample, number_of_parameters_per_layer):
-    # Serializes the random data to trainable form
+    seriliezed_next_sample = []
     next_sample = next_sample.tolist()
-    seriliezed_next_sample = np.copy(next_sample)
-    number_of_layers = int(len(next_sample) / number_of_parameters_per_layer)
+    number_of_layers = int((len(next_sample))/number_of_parameters_per_layer)
 
     for i in range(0, number_of_layers):
-        # Rounds the number of units in the layer
-        seriliezed_next_sample[i * number_of_parameters_per_layer] = \
-            round(next_sample[i * number_of_parameters_per_layer])
-        # Chooses the activation function
-        index = next_sample[(i * number_of_parameters_per_layer) + 1: (i + 1) * number_of_parameters_per_layer].index(
-            max(next_sample[(i * number_of_parameters_per_layer) + 1: (i + 1) * number_of_parameters_per_layer]))
-        for fce in range(1, number_of_parameters_per_layer):
-            if index == fce:
-                seriliezed_next_sample[i * number_of_parameters_per_layer + fce] = 1
-            else:
-                seriliezed_next_sample[i * number_of_parameters_per_layer + fce] = 0
+        #Append the number of hidden units
+        seriliezed_next_sample.append(round(next_sample[i*number_of_parameters_per_layer]))
+        #Append the index of activation
+        #Search through the rest of the layer represented in the array
+        #The rest contains a number which corresponds to unnormalized probability of choosing the activation
+        seriliezed_next_sample.append(next_sample[(i*number_of_parameters_per_layer) + 1: (i+1)*number_of_parameters_per_layer]
+                                      .index(max(next_sample[(i*number_of_parameters_per_layer) + 1: (i+1)*number_of_parameters_per_layer])))
+
+    return np.array(seriliezed_next_sample)
+
+
+def sanitize_next_sample_for_gp(next_sample, number_of_parameters_per_layer, min_units, max_units, dimension_of_out_put):
+    ##This function serves as a first sanitization of the decoder output
+    #Decoder outputs real numbers therefore we have to round them
+    #Decoder as well outputs unnormalized porbability across the activations to use for each layer
+    #This has to be sanitized as well, therefore the activation function with highest number is set to 1, rest to 0
+    depth = next_sample[0].shape[1]
+    seriliezed_next_sample = np.zeros((number_of_parameters_per_layer*depth))
+    #The decoded output is timedistributed in 3rd dimension, flatten it
+
+
+    if True:
+        for i in range(0, depth):
+
+            #This is the number of hidden units
+
+            temp = round(next_sample[0][0,i ,0])
+
+            if (temp < 0.5) and (i==0):
+                print(next_sample[0][0,:,0])
+                return np.zeros((number_of_parameters_per_layer))
+            #If it predicts less than 0.5 units than this means the NN config reached its depth
+            elif temp < 0.5:
+                #Hardcode the dimension of output
+                seriliezed_next_sample[(i-1) * number_of_parameters_per_layer] = dimension_of_out_put
+                #Return the shortened example
+                seriliezed_next_sample = seriliezed_next_sample[:i * number_of_parameters_per_layer]
+                return seriliezed_next_sample
+
+            #If the depth is maximum hardcode the dimension of output
+            if i == depth - 1:
+                temp = dimension_of_out_put
+            seriliezed_next_sample[i * number_of_parameters_per_layer] = temp
+
+            next_sample_temp = next_sample[1][0,i].tolist()
+            #Find the index of maxium of unnoramlized porbabilities of activations
+            index = next_sample_temp.index(max(next_sample_temp))
+
+            for fce in range(0, number_of_parameters_per_layer - 1):
+                #Set the maximum to one
+                if index == fce:
+                    seriliezed_next_sample[i * number_of_parameters_per_layer + fce + 1] = 1
+                #Set rest to 0
+                else:
+                    seriliezed_next_sample[i * number_of_parameters_per_layer + fce + 1] = 0
 
     return seriliezed_next_sample
+x = """[[ -6.02918148e-01   1.77350804e-01   9.29854035e-01   7.02566504e-01
+    9.67357516e-01  -6.00074410e-01   2.54614770e-01  -8.19723845e-01
+   -2.59723693e-01]
+ [ -5.74780583e-01   1.51640475e-02   9.30014729e-01   8.39001596e-01
+    9.78780031e-01  -6.72365427e-01   4.09586757e-01  -8.10038567e-01
+   -1.76012278e-01]
+ [ -2.69046754e-01  -2.17005014e-01   7.23471701e-01   9.53248203e-01
+    9.01338100e-01  -1.54368013e-01   1.00227602e-01  -4.73538190e-01
+    5.64580083e-01]
+ [ -1.20182939e-01   8.88000950e-02  -1.01273671e-01   9.97760892e-01
+   -6.80346191e-02  -9.63642120e-01   6.90279067e-01   9.76654589e-01
+   -2.42521942e-01]
+ [  7.07279667e-02   7.40593001e-02  -6.26644015e-01   9.99811172e-01
+   -5.51685512e-01  -9.91755426e-01   8.40101480e-01   9.98907804e-01
+   -2.50681221e-01]
+ [  3.27553339e-02  -5.29068947e-01   6.19673073e-01   9.99698758e-01
+    9.99810994e-01  -9.99965549e-01   9.99914527e-01   7.86833704e-01
+   -9.90615606e-01]
+ [ -3.95746052e-01   7.71330833e-01  -2.86365807e-01   9.64695215e-01
+   -9.74465489e-01  -8.65793765e-01  -5.24898887e-01   9.93332982e-01
+   -4.11356360e-01]
+ [ -7.88356423e-01   9.78201687e-01   5.87747097e-01   1.00927085e-01
+   -5.85685015e-01  -9.99440193e-01   8.53039265e-01   9.87735271e-01
+   -9.98956144e-01]
+ [ -7.33491302e-01  -3.56402069e-01   9.83193934e-01   9.27555561e-01
+    9.94346678e-01  -6.13359094e-01   1.84936494e-01  -9.39611375e-01
+    2.80767411e-01]
+ [ -1.01339683e-01   5.36479354e-02  -1.45093322e-01   9.98111129e-01
+   -1.63338512e-01  -9.57904816e-01   6.51490688e-01   9.79042411e-01
+   -1.40378252e-01]
+ [ -9.83050644e-01   9.49674070e-01   9.99695480e-01  -9.96263981e-01
+    9.96690691e-01  -9.25404668e-01  -3.56018007e-01  -9.97944176e-01
+   -9.93097901e-01]
+ [ -6.07822001e-01   9.13806915e-01   6.52887225e-01  -5.28984249e-01
+    1.01751462e-01  -9.05261636e-01   2.90051162e-01   3.77376318e-01
+   -9.59345877e-01]
+ [ -3.36057842e-01   3.80564541e-01   6.46417022e-01   9.94443238e-01
+    9.96420979e-01  -9.99954939e-01   9.99438107e-01   9.11967218e-01
+   -9.97482300e-01]
+ [ -7.45795012e-01   9.52589989e-01   7.33529687e-01   5.30796230e-01
+    7.21859634e-01  -9.99905527e-01   9.87448871e-01   9.65339839e-01
+   -9.99610782e-01]
+ [ -3.96437198e-01   7.68630743e-01  -2.67168880e-01   9.62015629e-01
+   -9.72104311e-01  -8.56052995e-01  -5.30076027e-01   9.92414534e-01
+   -3.99162173e-01]
+ [ -4.84386802e-01   6.18875504e-01   7.78239250e-01   9.74995315e-01
+    9.97355282e-01  -9.99971807e-01   9.99527097e-01   8.41252565e-01
+   -9.99233186e-01]
+ [ -5.98516583e-01   7.11913109e-01   8.54494214e-01   6.71793938e-01
+    9.79326725e-01  -9.98395324e-01   9.83381987e-01   1.87895760e-01
+   -9.94159460e-01]
+ [ -7.55923450e-01   9.69155431e-01   5.52013397e-01   3.86496812e-01
+   -4.60384041e-01  -9.99414325e-01   8.80434871e-01   9.87518370e-01
+   -9.98500168e-01]
+ [ -6.24674499e-01   3.12478900e-01   9.26171362e-01   6.03880882e-01
+    9.55337226e-01  -7.07439303e-01   3.10267001e-01  -7.76839018e-01
+   -4.92860109e-01]
+ [ -2.73176223e-01   1.35698408e-01   6.26311600e-01   8.93838525e-01
+    8.25385928e-01  -4.92446631e-01   3.01144004e-01  -1.97952494e-01
+    2.61151548e-02]
+ [ -8.26945245e-01   9.84225273e-01   8.14522326e-01  -8.95905554e-01
+   -2.32917160e-01  -9.91029143e-01   4.49674785e-01   7.58342981e-01
+   -9.97622728e-01]
+ [ -5.28893769e-01   5.21892667e-01   8.56634021e-01   8.27974677e-01
+    9.89265382e-01  -9.97767925e-01   9.86306131e-01  -4.17293012e-02
+   -9.88522232e-01]
+ [ -8.68283510e-01   9.91133034e-01   8.16109657e-01  -8.87963414e-01
+   -4.95339423e-01  -9.97745633e-01   5.74721873e-01   9.21692431e-01
+   -9.99224901e-01]
+ [ -6.22666836e-01   2.86109895e-01   9.26535964e-01   6.44637942e-01
+    9.57064152e-01  -7.16901064e-01   3.25654477e-01  -7.71455050e-01
+   -4.76528138e-01]
+ [ -3.83066535e-01   3.71071815e-01   7.94299960e-01   9.89949644e-01
+    9.99391913e-01  -9.99980867e-01   9.99826610e-01   7.51087844e-01
+   -9.99096036e-01]
+ [ -8.05177808e-01   9.80177820e-01   7.97306716e-01  -8.75154436e-01
+   -1.93039566e-01  -9.87416029e-01   4.28744495e-01   7.14392066e-01
+   -9.96549666e-01]
+ [ -9.70520794e-01   4.38622385e-01   9.99886096e-01  -8.41058731e-01
+    9.99988496e-01  -9.94904995e-01   9.44766343e-01  -9.99733210e-01
+   -9.94668782e-01]
+ [ -4.26110029e-01   6.87476993e-01   3.91171724e-01   9.87359643e-01
+    8.58696342e-01  -9.99735832e-01   9.91226971e-01   9.80325580e-01
+   -9.92865622e-01]
+ [ -2.38822587e-02   2.64246702e-01  -5.60199738e-01   9.98791695e-01
+   -8.43416214e-01  -9.16245162e-01   1.76105991e-01   9.96695697e-01
+    2.63707668e-01]
+ [ -9.26082551e-01   8.60976517e-01   9.94764805e-01  -9.37013388e-01
+    9.52497721e-01  -4.81828719e-01  -6.79482341e-01  -9.77679670e-01
+   -8.63972902e-01]
+ [  2.70410508e-01  -4.52363044e-01  -6.64483368e-01   9.99921918e-01
+   -4.55412477e-01  -9.33861911e-01   6.39669657e-01   9.96703267e-01
+    7.09401011e-01]
+ [ -1.29930437e-01  -6.85718536e-01   6.53863430e-01   9.96829748e-01
+    9.03129339e-01  -2.19527215e-01   1.97118104e-01  -1.68183357e-01
+    8.64193320e-01]
+ [ -6.18886590e-01   9.01660860e-01   6.98833764e-01  -2.12169647e-01
+    5.13821006e-01  -9.73767161e-01   6.90084934e-01   5.08188605e-01
+   -9.79508817e-01]
+ [ -5.92574120e-01   9.04056549e-01   6.52197480e-01  -4.87653852e-01
+    1.80318952e-01  -8.97032022e-01   3.09526205e-01   3.28659356e-01
+   -9.53563273e-01]
+ [  2.97059327e-01  -6.10619605e-01  -5.86006641e-01   9.99935985e-01
+   -1.28693342e-01  -9.17900980e-01   6.92152441e-01   9.92837787e-01
+    7.77582824e-01]
+ [  2.41545379e-01  -5.68766475e-01  -5.16766191e-01   9.99895990e-01
+   -1.50460124e-01  -9.12561834e-01   6.56077385e-01   9.90127623e-01
+    7.34281301e-01]
+ [ -9.94895875e-01   9.81028974e-01   9.99885798e-01  -9.98996556e-01
+    8.97757113e-01  -5.98182678e-01  -9.81983781e-01  -9.96239483e-01
+   -9.77083862e-01]
+ [ -8.87352586e-01   8.35304618e-01   9.88652468e-01  -8.75878751e-01
+    9.43844855e-01  -5.85238695e-01  -4.71715391e-01  -9.55618441e-01
+   -8.65344286e-01]
+ [ -6.63878560e-01   9.03729200e-01   6.90272391e-01   8.37361991e-01
+    8.71962428e-01  -9.99905169e-01   9.92869377e-01   9.61418033e-01
+   -9.99246657e-01]
+ [ -2.75288731e-01   6.08400583e-01  -3.14160258e-01   9.87298667e-01
+   -9.29480433e-01  -8.13173175e-01  -4.17527229e-01   9.91531074e-01
+    2.64055133e-02]
+ [ -7.75648355e-01   9.81431484e-01   3.15279067e-01   2.98004091e-01
+   -9.47207987e-01  -9.98193026e-01   4.31285292e-01   9.96583283e-01
+   -9.96528327e-01]
+ [  2.27093301e-03  -4.90993828e-01   6.60589337e-01   9.99616742e-01
+    9.99859095e-01  -9.99973595e-01   9.99932706e-01   7.55475819e-01
+   -9.93368506e-01]
+ [  2.08633095e-01  -2.85578400e-01  -5.89695752e-01   9.99919474e-01
+    1.96889371e-01  -9.93525624e-01   9.38962400e-01   9.97735381e-01
+   -1.30225673e-01]
+ [ -3.24057966e-01   7.60644555e-01  -5.19802332e-01   9.93353844e-01
+   -9.76146698e-01  -9.69230115e-01  -9.37946960e-02   9.98929679e-01
+   -5.65644860e-01]
+ [ -7.05445766e-01   9.67720330e-01   5.04132137e-02   7.56113172e-01
+   -9.71325636e-01  -9.96846855e-01   2.68750608e-01   9.98263896e-01
+   -9.88848567e-01]
+ [ -4.38299507e-01   7.82215953e-01   5.61184227e-01   9.27819237e-02
+    4.47514415e-01  -7.80630231e-01   3.19363266e-01   1.87764078e-01
+   -8.29437792e-01]
+ [  1.91211268e-01  -5.45912981e-01  -4.24991071e-01   9.99832213e-01
+   -1.05410539e-01  -9.02970016e-01   6.28681123e-01   9.84431326e-01
+    6.95098758e-01]
+ [  4.10829365e-01  -7.88086712e-01  -5.19766927e-01   9.99972761e-01
+    6.86904907e-01  -9.59636331e-01   9.18130755e-01   9.84912038e-01
+    7.39234567e-01]
+ [ -7.47556627e-01   6.94939137e-01   9.50196803e-01  -4.00851339e-01
+    8.98787260e-01  -5.99007547e-01  -1.30592838e-01  -8.47063899e-01
+   -7.45665073e-01]
+ [ -7.89156109e-02   6.01267070e-02  -2.00989544e-01   9.98477101e-01
+   -1.52632207e-01  -9.65216815e-01   6.94182515e-01   9.84045029e-01
+   -1.65632531e-01]
+ [ -9.72305596e-01   7.59121418e-01   9.99201238e-01  -8.75109434e-01
+    9.59288239e-01   4.55918089e-02  -9.56552386e-01  -9.91933286e-01
+   -3.73306155e-01]
+ [ -6.42501950e-01   9.34596658e-01   6.49853706e-01  -6.65598869e-01
+   -1.93901435e-01  -8.72948766e-01   2.98189316e-02   4.43841994e-01
+   -9.57166731e-01]
+ [ -5.33075809e-01   5.21411896e-01   8.47157180e-01   8.34675908e-01
+    9.83532012e-01  -9.97011364e-01   9.80200887e-01   2.43510548e-02
+   -9.84946072e-01]
+ [ -1.37877956e-01   1.83707461e-01   2.49693483e-01   9.96914685e-01
+    9.50087786e-01  -9.98728156e-01   9.90557551e-01   9.48692799e-01
+   -9.43747580e-01]
+ [ -6.20240092e-01   8.50491285e-01   7.38456607e-01   9.02853727e-01
+    9.68373656e-01  -9.99945879e-01   9.97459233e-01   9.33653414e-01
+   -9.99369144e-01]
+ [ -9.98416424e-01   9.66982543e-01   9.99996781e-01  -9.99780297e-01
+    9.99624372e-01  -8.78960371e-01  -9.09234822e-01  -9.99963343e-01
+   -9.94821012e-01]
+ [ -2.60809481e-01   6.10407591e-01  -3.76894563e-01   9.90180433e-01
+   -9.42274690e-01  -8.44910681e-01  -3.85029614e-01   9.94087219e-01
+    4.12464113e-04]
+ [ -5.84191918e-01   8.98589194e-01   6.50509953e-01  -4.63672459e-01
+    2.14087859e-01  -8.91760170e-01   3.15440804e-01   3.06128263e-01
+   -9.49853778e-01]
+ [ -6.59773827e-01   9.05150890e-01   8.30477655e-01  -4.66615587e-01
+    9.02617991e-01  -9.91913617e-01   9.12724435e-01   5.16224578e-02
+   -9.94399190e-01]
+ [ -8.09641778e-01   6.53066516e-01   9.77609992e-01  -4.73494172e-01
+    9.57913280e-01  -4.98473167e-01  -2.75827914e-01  -9.34451520e-01
+   -6.63104236e-01]
+ [ -3.28559101e-01   6.95960045e-01  -3.36146593e-01   9.82460260e-01
+   -9.61593151e-01  -8.57675970e-01  -4.56294298e-01   9.93971467e-01
+   -2.03653261e-01]
+ [ -3.78483057e-01   7.09014058e-01  -1.25190154e-01   9.53601122e-01
+   -9.33425069e-01  -7.49503016e-01  -5.50508976e-01   9.80761290e-01
+   -1.82940200e-01]
+ [ -6.16352737e-01   9.04623985e-01   6.60183132e-01  -1.30669892e-01
+    3.37838531e-01  -9.71149087e-01   6.23195410e-01   6.24413252e-01
+   -9.75790560e-01]
+ [ -9.34542179e-01   7.04851985e-01   9.98815238e-01  -8.36417973e-01
+    9.99778688e-01  -9.90877867e-01   9.12137747e-01  -9.96022999e-01
+   -9.93582904e-01]
+ [ -9.68752682e-01   9.20542300e-01   9.97867644e-01  -9.69710708e-01
+    7.52778947e-01  -1.95692793e-01  -9.55550432e-01  -9.71427083e-01
+   -8.06094050e-01]
+ [ -2.46931851e-01   3.22049916e-01   3.89911711e-01   9.97341335e-01
+    9.77771699e-01  -9.99838591e-01   9.97728050e-01   9.67680812e-01
+   -9.89222527e-01]
+ [ -9.54365253e-01   6.40987039e-01   9.99541044e-01  -8.52238953e-01
+    9.99923050e-01  -9.93892491e-01   9.29695249e-01  -9.98531163e-01
+   -9.95160162e-01]
+ [ -7.22424209e-01  -4.38714892e-01   9.82711852e-01   9.44997251e-01
+    9.93963301e-01  -5.25609493e-01   1.00928664e-01  -9.41726387e-01
+    4.44989115e-01]
+ [ -4.21151489e-01   5.07819533e-01   7.45233715e-01   9.86858010e-01
+    9.97766972e-01  -9.99969363e-01   9.99581993e-01   8.56427491e-01
+   -9.98841584e-01]
+ [ -6.61534429e-01   8.80570412e-01   8.38325739e-01  -1.05690755e-01
+    9.26492751e-01  -9.96018648e-01   9.46575582e-01   2.16887534e-01
+   -9.95264471e-01]
+ [ -6.49108171e-01   9.35154200e-01   2.69631207e-01   8.80272985e-01
+   -6.12648368e-01  -9.99115467e-01   8.62962246e-01   9.95040596e-01
+   -9.94162560e-01]
+ [ -9.50550795e-01   9.16820586e-01   9.97894704e-01  -9.76969600e-01
+    9.93423283e-01  -9.41873670e-01   1.87264398e-01  -9.88563299e-01
+   -9.89420891e-01]
+ [  2.61416048e-01  -3.65600109e-01  -6.64688289e-01   9.99925196e-01
+   -2.29366526e-01  -9.75018680e-01   8.23194504e-01   9.97642457e-01
+    4.39133227e-01]
+ [ -4.97352213e-01   6.25848651e-01   8.04096997e-01   9.70134914e-01
+    9.98113513e-01  -9.99976158e-01   9.99619961e-01   8.02199841e-01
+   -9.99393463e-01]
+ [ -5.06311953e-01   8.41376424e-01   6.12890065e-01  -1.75407901e-01
+    3.98471087e-01  -8.43518317e-01   3.47237676e-01   2.06664130e-01
+   -9.03005600e-01]
+ [ -9.20497000e-01   3.74868989e-01   9.98949766e-01  -2.93912917e-01
+    9.99938607e-01  -9.96899307e-01   9.75651860e-01  -9.96266544e-01
+   -9.93412375e-01]
+ [ -2.10566390e-02  -3.94681364e-01   6.17135286e-01   9.99543130e-01
+    9.99735117e-01  -9.99969721e-01   9.99902308e-01   8.27620327e-01
+   -9.93236005e-01]
+ [  3.39873046e-01  -7.13030994e-01  -5.26800275e-01   9.99943435e-01
+    2.35590145e-01  -9.01991785e-01   7.54904509e-01   9.85701919e-01
+    8.18108797e-01]
+ [ -9.56263185e-01   8.93540263e-01   9.97364163e-01  -9.62054193e-01
+    9.10945058e-01  -3.16162735e-01  -8.85419607e-01  -9.80998158e-01
+   -8.33801389e-01]
+ [ -4.25068974e-01   7.23673642e-01   6.65975690e-01   1.47019550e-01
+    8.21146011e-01  -8.55943620e-01   6.32898211e-01  -1.55891135e-01
+   -8.71601522e-01]
+ [ -6.38536274e-01   4.69265014e-01   8.98348391e-01   3.68046552e-01
+    7.70372987e-01   2.10322570e-02  -5.64866662e-01  -6.94403768e-01
+    8.63052756e-02]
+ [ -7.25706458e-01   9.46867526e-01   8.35405052e-01  -7.24667430e-01
+    7.58087397e-01  -9.91683006e-01   8.46609771e-01   2.32240379e-01
+   -9.96287465e-01]
+ [ -1.07860513e-01   4.78951901e-01  -6.05688334e-01   9.99052942e-01
+   -8.88605118e-01  -9.84003544e-01   5.19739866e-01   9.99067724e-01
+   -3.80891383e-01]
+ [ -5.61684430e-01  -2.04565600e-01   9.20880377e-01   9.48492646e-01
+    9.66247976e-01  -7.50591874e-01   4.18117434e-01  -6.83978856e-01
+   -6.40618987e-03]
+ [ -4.86315429e-01  -1.11510418e-01   8.75854790e-01   9.46936965e-01
+    9.61737037e-01  -8.83159995e-01   6.99805617e-01  -5.23034930e-01
+   -4.16423231e-01]
+ [  3.63186896e-01  -6.70528352e-01  -6.54063821e-01   9.99966145e-01
+   -7.97548071e-02  -9.27581728e-01   7.45525599e-01   9.94928837e-01
+    8.17771137e-01]
+ [ -3.05896521e-01   6.50326550e-01  -2.96571076e-01   9.83438671e-01
+   -9.41709876e-01  -8.20945740e-01  -4.48638588e-01   9.91503239e-01
+   -7.05836713e-02]
+ [ -3.37795407e-01   6.81016147e-01  -2.47783586e-01   9.76577580e-01
+   -9.44753349e-01  -8.09910059e-01  -4.88889277e-01   9.89768207e-01
+   -1.35585025e-01]
+ [ -4.24238205e-01   5.99176168e-01   6.07231379e-01   3.98261130e-01
+    1.92325681e-01   5.66258952e-02  -5.12393713e-01  -1.05773687e-01
+   -4.85506561e-03]
+ [ -9.71148908e-01   8.01806808e-01   9.98941839e-01  -8.93845499e-01
+    9.24982667e-01   4.11728919e-02  -9.61871803e-01  -9.87861514e-01
+   -4.38717723e-01]
+ [ -7.92630851e-01   3.89916927e-01   9.88280416e-01   4.64832902e-01
+    9.99393880e-01  -9.97505724e-01   9.84554887e-01  -9.34474945e-01
+   -9.91098940e-01]
+ [ -7.04152763e-01   9.65134561e-01   1.44663140e-01   7.56601870e-01
+   -9.35918510e-01  -9.97964799e-01   5.18593967e-01   9.97589171e-01
+   -9.92200792e-01]
+ [  3.15661877e-01  -7.90841877e-01  -2.92731166e-01   9.99909461e-01
+    6.33270741e-01  -8.63068044e-01   7.88521886e-01   9.40014184e-01
+    8.28294933e-01]
+ [ -9.87035871e-01   9.55361962e-01   9.99809444e-01  -9.97610271e-01
+    9.96986449e-01  -9.12888169e-01  -5.08540630e-01  -9.98644948e-01
+   -9.93209720e-01]
+ [ -9.92662966e-01   9.65866983e-01   9.99928236e-01  -9.99088466e-01
+    9.97369528e-01  -8.75718892e-01  -7.53607750e-01  -9.99427319e-01
+   -9.93328631e-01]
+ [ -1.82355165e-01   5.54263711e-01  -5.07935226e-01   9.95392680e-01
+   -9.46986616e-01  -8.81123781e-01  -2.62710273e-01   9.96748924e-01
+    6.85957000e-02]
+ [  1.48554072e-01  -5.94330728e-02  -6.93888009e-01   9.99880135e-01
+   -6.48749471e-01  -9.84387457e-01   7.66892195e-01   9.99019980e-01
+    1.37249917e-01]
+ [ -9.98533189e-01   9.75620687e-01   9.99996066e-01  -9.99817491e-01
+    9.99043822e-01  -8.60268354e-01  -9.45241392e-01  -9.99935508e-01
+   -9.94700730e-01]
+ [ -6.92639589e-01   8.90919566e-01   8.55343103e-01   7.15954542e-01
+    9.90259349e-01  -9.99974132e-01   9.98820782e-01   8.28844547e-01
+   -9.99816418e-01]
+ [ -6.17783010e-01   7.55139232e-01   8.18355322e-01   5.98858774e-01
+    9.10974145e-01  -9.95469093e-01   9.40397918e-01   3.67057085e-01
+   -9.87641692e-01]]"""
+
+h = x.split(" ")
+
+numbers = []
+for i in range(0, len(h)):
+    j = False
+    try:
+        number = float(h[i])
+        numbers.append(number)
+    except ValueError:
+        j = True
+    if j:
+        try:
+            number = float(h[i][:-2])
+            numbers.append(number)
+        except ValueError:
+            pass
+    if j:
+        try:
+            number = float(h[i][1:])
+            numbers.append(number)
+        except ValueError:
+            pass
+arr = np.array(numbers)
+arr = np.reshape(arr,(-1,9))
 
 
-def create_first_training_data(no_of_training_data, min_units, max_units,
-                               min_depth, max_depth, num_of_act_fce, no_of_parameters_per_layer):
-    # Initalize the random data to train upon
-    epsilon = 1e-7
-    datax_fce = np.zeros((no_of_training_data, max_depth, num_of_act_fce))
-    datax_fce_t = np.zeros((no_of_training_data, max_depth, num_of_act_fce))
-    datax_hidden = np.zeros((no_of_training_data, max_depth, 1))
-    datax_hidden_t = np.zeros((no_of_training_data, max_depth, 1))
-
-    for i in range(0, no_of_training_data):
-        depth = int(
-            round(np.random.random() * (max_depth - min_depth + 1) * (1 - epsilon) + (
-            min_depth - 0.5 + (epsilon * (max_depth - min_depth + 2)))))
-
-        bounds = create_bounds(num_of_act_fce, min_units, max_units, depth, max_depth)
-        x = serialize_next_sample_for_gp(np.random.uniform(bounds[:, 0], bounds[:, 1], bounds.shape[0]),
-                                         no_of_parameters_per_layer)
-        bit_count = 0
-        for steps in range(0, max_depth):
-            datax_hidden[i, steps, 0] = x[bit_count]
-            bit_count += 1
-            for bits_per_layer in range(0, num_of_act_fce):
-                datax_fce[i, steps, bits_per_layer] = x[bit_count]
-                bit_count += 1
-        for steps in range(0, max_depth):
-            datax_hidden_t[i, steps, :] = datax_hidden[i, max_depth - steps - 1, :]
-            datax_fce_t[i, steps, :] = datax_fce[i, max_depth - steps - 1, :]
-    return datax_hidden, datax_hidden_t, datax_fce, datax_fce_t
 
 
-def transform_into_timeseries(datax):
-    max_depth = max_depth_glob
-    num_of_act_fce = number_of_parameters_per_layer_glob - 1
+regularized = [arr[-1,:]]
+for i in range(0, arr.shape[0] - 1):
+    check = True
+    for i2 in range(i+1, arr.shape[0]):
+        dist = euclidean(arr[i,:],arr[i2,:])
+        if dist < 0.0000001:
+            check = False
+    if check:
+        regularized.append(arr[i,:])
 
-    length_of_datax = len(datax)
-    datax_hidden_perf, datax_hidden_t_perf = np.zeros((length_of_datax, max_depth_glob, 1)), \
-                                             np.zeros((length_of_datax, max_depth_glob, 1))
-
-    datax_fce_perf, datax_fce_t_perf = np.zeros(
-        (length_of_datax, max_depth_glob, number_of_parameters_per_layer_glob - 1)), np.zeros(
-        (length_of_datax, max_depth_glob, number_of_parameters_per_layer_glob - 1))
-
-    for i in range(0, length_of_datax):
-        bit_count = 0
-        act_len_of_datax = len(datax[i])
-        steps = 0
-
-        while bit_count < act_len_of_datax:
-            datax_hidden_t_perf[i, steps, 0] = datax[i][bit_count]
-            bit_count += 1
-            for bits_per_layer in range(0, num_of_act_fce):
-                datax_fce_t_perf[i, steps, bits_per_layer] = datax[i][bit_count]
-                bit_count += 1
-            steps += 1
-
-        # Transpose it, for reverse order
-        for steps2 in range(0, steps):
-            datax_hidden_perf[i, steps2, :] = datax_hidden_t_perf[i, max_depth - steps2 - 1, :]
-            datax_fce_perf[i, steps2, :] = datax_fce_t_perf[i, max_depth - steps2 - 1, :]
-
-        return datax_hidden_perf, datax_hidden_t_perf, datax_fce_perf, datax_fce_t_perf
+arr = np.array(regularized)
+print(arr.shape[0])
+pca = PCA(n_components=2)
+Z = pca.fit_transform(arr)
 
 
-def train_model(dimension_of_decoder, num_of_act_fce1, min_units1, max_units1, min_depth1, max_depth,
-                no_of_training_data1, no_of_parameters_per_layer, reverse_order):
-    # Callable function from outside to train the model
-    # Setting global variables for the models
-    global max_depth_glob, number_of_parameters_per_layer_glob, dimension_of_hidden_layers, encoder_decoder, \
-        encoder_performance, no_of_training_data, min_units, max_units, min_depth, num_of_act_fce, encoder, decoder
 
-    max_depth_glob = max_depth
+pkl_file = open('encoder_input3.pkl', 'rb' )
 
-    no_of_training_data, min_units = no_of_training_data1, min_units1
-    max_units = max_units1
-    min_depth = min_depth1
-    num_of_act_fce = num_of_act_fce1
-
-    dimension_of_hidden_layers = dimension_of_decoder
-    number_of_parameters_per_layer_glob = no_of_parameters_per_layer
-
-    # Constructing the model
-    # Constructing encoder
-    input1 = Input(shape=(max_depth, num_of_act_fce,))
-    input2 = Input(shape=(max_depth, 1,))
-    base_m, base_m_out = encoder_model(input2, input1)
-    encoder = base_m
-    # Constructing decoder
-    input = Input(shape=(dimension_of_hidden_layers,))
-    decoder, decoder_out = model_for_decoder(input)
-    # Constructing the whole model encoder_decoder
-    input1 = Input(shape=(max_depth, num_of_act_fce,))
-    input2 = Input(shape=(max_depth, 1,))
-    full_model = encoder_decoder_construct(input2, input1, base_m, decoder)
-    encoder_decoder = full_model
-
-    # Constructing a encoder_performance model
-    input1 = Input(shape=(max_depth, num_of_act_fce,))
-    input2 = Input(shape=(max_depth, 1,))
-    encoder_performance = encoder_performance_construct(input2, input1, base_m, decoder)
-
-    datax_hidden, datax_hidden_t, datax_fce, datax_fce_t = create_first_training_data(no_of_training_data, min_units,
-                                                                                      max_units,
-                                                                                      min_depth, max_depth,
-                                                                                      num_of_act_fce,
-                                                                                      no_of_parameters_per_layer)
-
-    # Train the encoder_decoder
-    for epoch in range(0, 1):
-        train_on_epoch(full_model, datax_hidden, datax_hidden_t, datax_fce, datax_fce_t, epoch, batch_size=10,
-                       reverse_order=reverse_order)
-
-    # Return encoder and decoder
-    return base_m, decoder, full_model
+data1 = pickle.load(pkl_file)
+pkl_file.close()
 
 
-def train_all_models(datax, datay):
-    datax_hidden_perf, datax_hidden_t_perf, datax_fce_perf, datax_fce_t_perf = transform_into_timeseries(datax)
+pkl_file = open('performance_list.pkl', 'rb')
 
-    # Do datay separately
-    length_of_datax = len(datax)
-    datay_perf = np.zeros((length_of_datax, len(datay[0])))
-    for i in range(0, length_of_datax):
-        # Do datay now
-        datay_perf[i, :] = datay[i]
-
-    datax_hidden, datax_hidden_t, datax_fce, datax_fce_t = create_first_training_data(no_of_training_data, min_units,
-                                                                                      max_units,
-                                                                                      min_depth, max_depth_glob,
-                                                                                      num_of_act_fce,
-                                                                                      number_of_parameters_per_layer_glob)
-
-    for epoch in range(0, 150):
-        train_on_epoch(encoder_decoder, datax_hidden, datax_hidden_t, datax_fce, datax_fce_t, epoch,
-                       encoder_performance, datax_hidden_perf,
-                       datax_hidden_t_perf, datax_fce_perf, datax_fce_t_perf,
-                       datay_perf, batch_size=10, reverse_order=True)
+data2 = pickle.load(pkl_file)
+pkl_file.close()
 
 
-def find_reasonable_structure(encoded_input, gaussian_process):
-    global max_depth_glob, number_of_parameters_per_layer_glob, dimension_of_hidden_layers, encoder_decoder, \
-        encoder_performance, no_of_training_data, min_units, max_units, min_depth, num_of_act_fce, encoder, decoder
 
-    # Constructing the model
-    # Constructing encoder
-    input2 = Input(shape=(max_depth_glob, num_of_act_fce,))
-    input1 = Input(shape=(max_depth_glob, 1,))
-    base_m, base_m_out = encoder_input(input2, input1)
-    encoder = base_m
-    # Constructing decoder
-    input = Input(shape=(dimension_of_hidden_layers,))
-    decoder, decoder_out = model_for_decoder(input)
-    # Constructing the whole model encoder_decoder
-    input1 = Input(shape=(max_depth_glob, num_of_act_fce,))
-    input = Input(shape=(max_depth_glob, 1,))
-    full_model = encoder_decoder_construct(input2, input1, base_m, decoder)
-    encoder_decoder = full_model
+
+datax_hidden, datax_hidden_t,\
+datax_fce, datax_fce_t = data1[0], data1[1],\
+                                                    data1[2],\
+                                                            data1[3]
+sanitized_list, for_dense_nn = [],[]
+for i in range(datax_hidden_t.shape[0]):
+    sanitized_list.append(sanitize_next_sample_for_gp([datax_hidden_t[i:i+1,:,:], datax_fce_t[i:i+1,:,:]],3,2,100,3))
+    print(datax_fce_t[i,:,:])
+    for_dense_nn.append(seriliaze_next_sample_for_loss_fce(sanitized_list[-1],3))
+
+colors = ['blue', 'red']
+color_list = []
+for i in range(len(for_dense_nn)):
+
+    color_list.append(colors[for_dense_nn[i][-1]])
+
+plt.scatter(Z[:,0], Z[:,1], c=color_list)
+plt.show()
+
+
+

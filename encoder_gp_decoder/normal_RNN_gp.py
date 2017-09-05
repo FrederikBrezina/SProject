@@ -94,7 +94,7 @@ def encoder_decoder_construct(input1, input2, encoder, decoder):
     layer = encoder([input1, input2])
     output1, output2 = decoder(layer)
     model = Model(inputs=[input1,input2], outputs=[output1, output2])
-    model.compile(loss=["mse","categorical_crossentropy"], optimizer='adam', metrics=[],loss_weights=[0.1,400000.])
+    model.compile(loss="mse", optimizer='adam', metrics=[],loss_weights=[0.1,1000.])
 
     return model
 def encoder_performance_construct(input1, input2, encoder, decoder):
@@ -105,7 +105,7 @@ def encoder_performance_construct(input1, input2, encoder, decoder):
     layer = Dense(10, activation='relu', kernel_regularizer=regularizers.l2(0.01))(layer)
     output3 = Dense(1, activation='sigmoid')(layer)
     model = Model(inputs=[input1, input2], outputs=[output1,output2,output3])
-    model.compile(loss=["mse","categorical_crossentropy","mse"], optimizer='adam', metrics=[], loss_weights=[0.1,100.,40000.])
+    model.compile(loss="mse", optimizer='adam', metrics=[], loss_weights=[0.1,100.,100000.])
 
     return model
 
@@ -140,7 +140,7 @@ def train_on_epoch(model2, x_h, x_h_t , x_fce, x_fce_t, epoch, model = None, dat
     no_of_batches = int(len_of_data/ batch_size) + 1
 
     cur_line, cur_line_perf = 0, 0
-    model_loss, model2_loss = [0], []
+    model_loss, model2_loss = [0], [0]
     rounds_from_last_train_perf = 0
     model_decoder_encoder_loss = []
 
@@ -157,28 +157,28 @@ def train_on_epoch(model2, x_h, x_h_t , x_fce, x_fce_t, epoch, model = None, dat
             model2_loss.append(model2.train_on_batch([x_h[cur_line:(len_of_data)], x_fce[cur_line:(len_of_data)]],
                                                      [x_h_2[cur_line:(len_of_data)], x_fce_2[cur_line:(len_of_data)]]))
 
-        #Train the performance model
-        futur_line_perf = cur_line_perf + batch_size
-        if model != None:
-            if futur_line_perf <= len_of_data_perf:
-                model_loss.append(model.train_on_batch([datax_hidden_perf[cur_line_perf:(futur_line_perf)],
-                                                        datax_fce_perf[cur_line_perf:(futur_line_perf)]],
-                                                       [x_h_2_perf[cur_line_perf:(futur_line_perf)],
-                                                        x_fce_2_perf[cur_line_perf:(futur_line_perf)],
-                                                        datay_perf[cur_line_perf:(futur_line_perf)]
-                                                        ]))
-
-                cur_line_perf = futur_line_perf
-            elif cur_line_perf< len_of_data_perf:
-                model_loss.append(model.train_on_batch([datax_hidden_perf[cur_line_perf:(len_of_data_perf)],
-                                                        datax_fce_perf[cur_line_perf:(len_of_data_perf)]],
-                                                       [x_h_2_perf[cur_line_perf:(len_of_data_perf)],
-                                                        x_fce_2_perf[cur_line_perf:(len_of_data_perf)],
-                                                        datay_perf[cur_line_perf:(len_of_data_perf)]
-                                                        ]))
-                cur_line_perf = 0
-            else:
-                cur_line_perf = 0
+        # #Train the performance model
+        # futur_line_perf = cur_line_perf + batch_size
+        # if model != None:
+        #     if futur_line <= len_of_data_perf:
+        #         model_loss.append(model.train_on_batch([datax_hidden_perf[cur_line_perf:(futur_line_perf)],
+        #                                                 datax_fce_perf[cur_line_perf:(futur_line_perf)]],
+        #                                                [x_h_2_perf[cur_line_perf:(futur_line_perf)],
+        #                                                 x_fce_2_perf[cur_line_perf:(futur_line_perf)],
+        #                                                 datay_perf[cur_line_perf:(futur_line_perf)]
+        #                                                 ]))
+        #         print(datax_hidden_perf[cur_line_perf:(futur_line_perf)])
+        #         cur_line_perf = futur_line_perf
+        #     elif cur_line_perf< len_of_data_perf:
+        #         model_loss.append(model.train_on_batch([datax_hidden_perf[cur_line_perf:(len_of_data_perf)],
+        #                                                 datax_fce_perf[cur_line_perf:(len_of_data_perf)]],
+        #                                                [x_h_2_perf[cur_line_perf:(len_of_data_perf)],
+        #                                                 x_fce_2_perf[cur_line_perf:(len_of_data_perf)],
+        #                                                 datay_perf[cur_line_perf:(len_of_data_perf)]
+        #                                                 ]))
+        #         cur_line_perf = 0
+        #     else:
+        #         cur_line_perf = 0
 
         print("Epoch #{}: model_full Loss: {}, model_perf_Loss: {}".format(epoch + 1,model2_loss[-1], model_loss[-1]))
 
@@ -217,11 +217,11 @@ def serialize_next_sample_for_gp(next_sample, number_of_parameters_per_layer,tra
         index = next_sample[(i * number_of_parameters_per_layer) + 1: (i + 1) * number_of_parameters_per_layer].index(
                 max(next_sample[(i * number_of_parameters_per_layer) + 1: (i + 1) * number_of_parameters_per_layer]))
         to_train_serialized[i * 2 + 1] = index
-        for fce in range(1, number_of_parameters_per_layer):
+        for fce in range(0, number_of_parameters_per_layer-1):
             if index == fce:
-                seriliezed_next_sample[i * number_of_parameters_per_layer + fce] = 1
+                seriliezed_next_sample[i * number_of_parameters_per_layer + fce + 1] = 1
             else:
-                seriliezed_next_sample[i * number_of_parameters_per_layer + fce] = 0
+                seriliezed_next_sample[i * number_of_parameters_per_layer + fce + 1] = 0
     for i in range(number_of_layers, max_depth_glob):
         for i2 in range(0, number_of_parameters_per_layer):
             seriliezed_next_sample[i* number_of_parameters_per_layer + i2] = 0
@@ -396,10 +396,10 @@ def train_model(x, y, x_test, y_test, act_fce,loss, optimizer, dimension_of_deco
     pkl_file.close()
 
     datax_hidden2, datax_hidden_t2, \
-    datax_fce2, datax_fce_t2 = data1[0][0:170], data1[1][0:170], data1[2][0:170], data1[3][0:170]
+    datax_fce2, datax_fce_t2 = data1[0][0:250], data1[1][0:250], data1[2][0:250], data1[3][0:250]
 
     sanitized_list, for_dense_nn = [],[]
-    for i in range(170):
+    for i in range(250):
 
         sanitized_list.append(sanitize_next_sample_for_gp([datax_hidden_t2[i:i+1,:,:], datax_fce_t2[i:i+1,:,:]],no_of_parameters_per_layer,min_units,max_units,dimension_of_output_y))
         for_dense_nn.append(seriliaze_next_sample_for_loss_fce(sanitized_list[-1],number_of_parameters_per_layer_glob))
@@ -415,12 +415,12 @@ def train_model(x, y, x_test, y_test, act_fce,loss, optimizer, dimension_of_deco
     # performance_metrics_arry = np.array(performance_metrics)
     #################################################
     performance_metrics = []
-    performance_metrics_arry = np.array(data2)[:170,:]
+    performance_metrics_arry = np.array(data2)[:250,:]
     for i in range(performance_metrics_arry.shape[0]):
         performance_metrics.append(performance_metrics_arry[i,:])
     ####################################################
     #Train the encoder_decoder
-    for epoch in range(0,300):
+    for epoch in range(0,1000):
         train_on_epoch(full_model, datax_hidden, datax_hidden_t, datax_fce, datax_fce_t, epoch,encoder_performance,
                        datax_hidden2,datax_hidden_t2,datax_fce2,datax_fce_t2, performance_metrics_arry[:,1], batch_size=10,
                        reverse_order=reverse_order)

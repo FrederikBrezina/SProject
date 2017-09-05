@@ -19,7 +19,7 @@ def call_main(loss, optimizer, min_depth, max_depth, min_units, max_units, act_f
     #Find the best architectures
     arch_list, loss_list = bayesian_optimisation(x,y,x_test,y_test, act_fce, loss, optimizer, batch_size, min_depth,
                                                  max_depth, min_units, max_units, n_iter, n_pre_samples=n_presamples,
-                                                 retrain_model_rounds=30, greater_is_better=1)
+                                                 retrain_model_rounds=1000, greater_is_better=1)
     #Save the NN_configurations
     output1 = open(output, 'wb')
     pickle.dump(arch_list, output1)

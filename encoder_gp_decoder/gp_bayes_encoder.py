@@ -215,7 +215,7 @@ def bayesian_optimisation(x,y,x_test,y_test, act_fce, loss, optimizer, batch_siz
     #Now choose next architecture based on knowledge of past results
     n=0
     while n <n_iters:
-        if (n%retrain_model_rounds == 0):
+        if (n%retrain_model_rounds == retrain_model_rounds-1):
             print(len(decoded_sanitized_list), len(performance_metrics_list))
 
             x_list = retrain_encode_again(decoded_sanitized_list, performance_metrics_list, encoder)

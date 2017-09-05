@@ -106,8 +106,8 @@ def encoder_performance_construct(input1, input2, encoder, decoder):
 
     layer = encoder([input1, input2])
     output1, output2 = decoder(layer)
-    layer = Dense(15, activation='relu', kernel_regularizer=regularizers.l2(0.01))(layer)
-    layer = Dense(10, activation='relu', kernel_regularizer=regularizers.l2(0.01))(layer)
+    layer = Dense(12, activation='relu', kernel_regularizer=regularizers.l2(0.01))(layer)
+    layer = Dense(8, activation='relu', kernel_regularizer=regularizers.l2(0.01))(layer)
     output3 = Dense(1, activation='sigmoid')(layer)
     model = Model(inputs=[input1, input2], outputs=[output1,output2,output3])
     model.compile(loss="mse", optimizer='adam', metrics=[], loss_weights=[0.1,100.,100000.])
@@ -273,12 +273,12 @@ def train_model(dimension_of_decoder, num_of_act_fce1, min_units1, max_units1, m
         #     [datax_hidden_test, datax_fce_test], [datax_hidden_t_test, datax_fce_t_test]))
 
 
-
+        points = 200
         for epoch in range(0, 200):
             train_on_epoch(encoder_decoder, datax_hidden2, datax_hidden_t2, datax_fce2, datax_fce_t2, epoch,
-                           encoder_performance, datax_hidden[0:150],
-                           datax_hidden_t[0:150], datax_fce[0:150], datax_fce_t[0:150],
-                           datay_perf[0:150], batch_size=10, reverse_order=True)
+                           encoder_performance, datax_hidden[0:points],
+                           datax_hidden_t[0:points], datax_fce[0:points], datax_fce_t[0:points],
+                           datay_perf[0:points], batch_size=10, reverse_order=True)
 
         encoded_data_test = encoder_M.predict([datax_hidden_test, datax_fce_test])
         encoded_data = encoder_M.predict([datax_hidden, datax_fce])
@@ -310,8 +310,9 @@ def train_model(dimension_of_decoder, num_of_act_fce1, min_units1, max_units1, m
                                                 normalize_y=True,)
             actual_points = len(encoded_data)
             print("how many points without duplication",actual_points)
-            xp = np.array(encoded_data[:150])
-            yp = np.array(datay_perf)[:150]
+            gp_points = 200
+            xp = np.array(encoded_data[:gp_points])
+            yp = np.array(datay_perf)[:gp_points]
             model.fit(xp,yp)
             avg = 0
             running_sum_list = []
@@ -330,7 +331,7 @@ def train_model(dimension_of_decoder, num_of_act_fce1, min_units1, max_units1, m
                     expected_improvement = (mu - loss_optimum) * norm.cdf(Z) + sigma * norm.pdf(Z)
                     expected_improvement[sigma == 0.0] = 0.0
 
-                running_sum = abs(mu - data2[200 + i])
+                running_sum = (mu - data2[200 + i])**2
                 avg += running_sum
                 running_sum_list.append([running_sum, mu, data2[200 + i], sigma, mu+sigma, expected_improvement])
                 print(running_sum_list[-1])
@@ -467,9 +468,9 @@ def normalize_data(data2):
 
 
 if __name__ == "__main__":
-    dimension_of_hidden_layers_out = 4
+    dimension_of_hidden_layers_out = 8
     dimension_of_decoder, num_of_act_fce1, min_units1, max_units1, min_depth1, max_depth,\
-    no_of_training_data1, no_of_parameters_per_layer, dimension_of_output, reverse_order = 25, 2, 2, 100, 2, 3, 1000, 3, 3, True
+    no_of_training_data1, no_of_parameters_per_layer, dimension_of_output, reverse_order = 9, 2, 2, 100, 2, 3, 1000, 3, 3, True
     train_model(dimension_of_decoder, num_of_act_fce1, min_units1, max_units1, min_depth1, max_depth,
                 no_of_training_data1, no_of_parameters_per_layer, dimension_of_output, reverse_order)
 

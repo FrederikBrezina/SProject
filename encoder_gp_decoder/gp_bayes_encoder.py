@@ -214,10 +214,11 @@ def bayesian_optimisation(x,y,x_test,y_test, act_fce, loss, optimizer, batch_siz
 
     #Now choose next architecture based on knowledge of past results
     n=0
+    retrain_flag = True
     while n <n_iters:
-        if (n%retrain_model_rounds == retrain_model_rounds-1):
+        if (n%retrain_model_rounds == retrain_model_rounds-1) and retrain_flag:
             print(len(decoded_sanitized_list), len(performance_metrics_list))
-
+            retrain_flag=False
             x_list = retrain_encode_again(decoded_sanitized_list, performance_metrics_list, encoder)
             xp = np.array(x_list)
         print("NN_after_intial search: ", n)
@@ -261,7 +262,7 @@ def bayesian_optimisation(x,y,x_test,y_test, act_fce, loss, optimizer, batch_siz
         #If it satisfies the depth requirements, proceed to train it
         if decoded_sanitized[0] > 0:
             serialized_arch_list.append(seriliaze_next_sample_for_loss_fce(decoded_sanitized, n_of_act_fce + 1))
-
+            retrain_flag = True
             # Sample loss for new set of parameters
             cv_score = sample_loss(serialized_arch_list[-1], x, y, x_test, y_test, act_fce, loss, optimizer, batch_size)
 

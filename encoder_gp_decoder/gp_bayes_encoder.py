@@ -219,7 +219,7 @@ def bayesian_optimisation(x,y,x_test,y_test, act_fce, loss, optimizer, batch_siz
         if (n%retrain_model_rounds == retrain_model_rounds-1) and retrain_flag:
             print(len(decoded_sanitized_list), len(performance_metrics_list))
             retrain_flag=False
-            ""
+
             x_list = retrain_encode_again(decoded_sanitized_list, performance_metrics_list, encoder)
             xp = np.array(x_list)
         print("NN_after_intial search: ", n)

@@ -125,7 +125,7 @@ def sample_next_hyperparameter(acquisition_func, gaussian_process, evaluated_los
 
 
 def bayesian_optimisation(x,y,x_test,y_test, act_fce, loss, optimizer, batch_size, min_depth, max_depth, min_units, max_units, n_iters,  n_pre_samples=5,
-                          gp_params=None, random_search=False, alpha=1e-5, epsilon=1e-7, retrain_model_rounds = 1000, greater_is_better=1):
+                          gp_params=None, random_search=False, alpha=0.04, epsilon=1e-7, retrain_model_rounds = 50, greater_is_better=1):
     """ bayesian_optimisation
 
     Uses Gaussian Processes to optimise the loss function `sample_loss`.
@@ -163,7 +163,7 @@ def bayesian_optimisation(x,y,x_test,y_test, act_fce, loss, optimizer, batch_siz
     y_list = []
     decoded_sanitized_list, performance_metrics_list,  = [], []
     n_of_act_fce = len(act_fce)
-    dimension_of_hidden_layers = 4  #this is the dimension between encoder decoder, also the dimension in which GP is working on
+    dimension_of_hidden_layers = 6  #this is the dimension between encoder decoder, also the dimension in which GP is working on
     bounds = np.zeros((dimension_of_hidden_layers, 2))
     bounds[:, 0] = -1
     bounds[:, 1] = 1
@@ -177,7 +177,7 @@ def bayesian_optimisation(x,y,x_test,y_test, act_fce, loss, optimizer, batch_siz
                                    serialized_arch_list, performance_metrics_list] = train_model(
         x, y, x_test, y_test, act_fce,loss, optimizer,
         dimension_of_hidden_layers, n_of_act_fce, min_units, max_units,
-        min_depth, max_depth, 3000, n_of_act_fce + 1, y.shape[1],
+        min_depth, max_depth, 1000, n_of_act_fce + 1, y.shape[1],
         reverse_order=reverse_order, initial_search=n_pre_samples)
 
     assert len(performance_metrics_list) == len(decoded_sanitized_list)
@@ -209,7 +209,7 @@ def bayesian_optimisation(x,y,x_test,y_test, act_fce, loss, optimizer, batch_siz
         kernel = gp.kernels.Matern(length_scale=0.25)
         model = gp.GaussianProcessRegressor(kernel=kernel,
                                             alpha=alpha,
-                                            n_restarts_optimizer=25,
+                                            n_restarts_optimizer=50,
                                             normalize_y=True)
 
     #Now choose next architecture based on knowledge of past results
@@ -257,9 +257,9 @@ def bayesian_optimisation(x,y,x_test,y_test, act_fce, loss, optimizer, batch_siz
             cv_score = cv_score[greater_is_better]
             yp_list.append(cv_score)
             y_list.append(cv_score)
-            np.savetxt("performance1.txt", y_list[170:])
+            np.savetxt("performance1.txt", y_list[100:])
             output = open('arch_list.pkl', 'wb')
-            pickle.dump(serialized_arch_list[170:], output)
+            pickle.dump(serialized_arch_list[100:], output)
             output.close()
             n += 1
 

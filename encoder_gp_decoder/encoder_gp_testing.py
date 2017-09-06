@@ -99,7 +99,7 @@ def encoder_decoder_construct(input1, input2, encoder, decoder):
     layer = encoder([input1, input2])
     output1, output2 = decoder(layer)
     model = Model(inputs=[input1,input2], outputs=[output1, output2])
-    model.compile(loss="mse", optimizer='adam', metrics=[],loss_weights=[0.1,1000.])
+    model.compile(loss="mse", optimizer='adam', metrics=[],loss_weights=[0.1,400.])
 
     return model
 def encoder_performance_construct(input1, input2, encoder, decoder):
@@ -110,7 +110,7 @@ def encoder_performance_construct(input1, input2, encoder, decoder):
     layer = Dense(8, activation='relu', kernel_regularizer=regularizers.l2(0.01))(layer)
     output3 = Dense(1, activation='sigmoid')(layer)
     model = Model(inputs=[input1, input2], outputs=[output1,output2,output3])
-    model.compile(loss="mse", optimizer='adam', metrics=[], loss_weights=[0.1,100.,100000.])
+    model.compile(loss="mse", optimizer='adam', metrics=[], loss_weights=[0.1,100.,10000.])
 
     return model
 
@@ -468,7 +468,7 @@ def normalize_data(data2):
 
 
 if __name__ == "__main__":
-    dimension_of_hidden_layers_out = 8
+    dimension_of_hidden_layers_out = 6
     dimension_of_decoder, num_of_act_fce1, min_units1, max_units1, min_depth1, max_depth,\
     no_of_training_data1, no_of_parameters_per_layer, dimension_of_output, reverse_order = 9, 2, 2, 100, 2, 3, 1000, 3, 3, True
     train_model(dimension_of_decoder, num_of_act_fce1, min_units1, max_units1, min_depth1, max_depth,

@@ -167,7 +167,7 @@ def train_on_epoch(model2, x_h, x_h_t , x_fce, x_fce_t, epoch, model = None, dat
                                                         x_fce_2_perf[cur_line_perf:(futur_line_perf)],
                                                         datay_perf[cur_line_perf:(futur_line_perf)]
                                                         ]))
-                print(datax_hidden_perf[cur_line_perf:(futur_line_perf)])
+
                 cur_line_perf = futur_line_perf
             elif cur_line_perf< len_of_data_perf:
                 model_loss.append(model.train_on_batch([datax_hidden_perf[cur_line_perf:(len_of_data_perf)],

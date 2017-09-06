@@ -250,16 +250,19 @@ def bayesian_optimisation(x,y,x_test,y_test, act_fce, loss, optimizer, batch_siz
         #If it satisfies the depth requirements, proceed to train it
         if decoded_sanitized[0] > 0:
             serialized_arch_list.append(seriliaze_next_sample_for_loss_fce(decoded_sanitized, n_of_act_fce + 1))
+
             # Sample loss for new set of parameters
             cv_score = sample_loss(serialized_arch_list[-1], x, y, x_test, y_test, act_fce, loss, optimizer, batch_size)
+
             decoded_sanitized_list.append(decoded_sanitized)
             performance_metrics_list.append(cv_score)
+            print(serialized_arch_list[-1], cv_score[1])
             cv_score = cv_score[greater_is_better]
             yp_list.append(cv_score)
             y_list.append(cv_score)
-            np.savetxt("performance1.txt", y_list[100:])
+            np.savetxt("performance1.txt", y_list)
             output = open('arch_list.pkl', 'wb')
-            pickle.dump(serialized_arch_list[100:], output)
+            pickle.dump(serialized_arch_list, output)
             output.close()
             n += 1
 

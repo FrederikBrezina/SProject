@@ -125,7 +125,7 @@ def sample_next_hyperparameter(acquisition_func, gaussian_process, evaluated_los
 
 
 def bayesian_optimisation(x,y,x_test,y_test, act_fce, loss, optimizer, batch_size, min_depth, max_depth, min_units, max_units, n_iters,  n_pre_samples=5,
-                          gp_params=None, random_search=False, alpha=0.04, epsilon=1e-7, retrain_model_rounds = 50, greater_is_better=1):
+                          gp_params=None, random_search=False, alpha=0.04, epsilon=1e-8, retrain_model_rounds = 50, greater_is_better=1):
     """ bayesian_optimisation
 
     Uses Gaussian Processes to optimise the loss function `sample_loss`.
